@@ -1,0 +1,2408 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="서점/마트 근무 스케줄을 주차별로 관리하고, URL 공유 및 이미지(PNG)로 내보낼 수 있는 웹 앱" />
+  <title>근무 스케줄 관리</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+
+  <!-- html2canvas for PNG export -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+  <style>
+    :root{
+      --bg: #0b1220;
+      --panel: #0f172a;
+      --card: rgba(255,255,255,.06);
+      --card2: rgba(255,255,255,.09);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.70);
+      --muted2: rgba(255,255,255,.55);
+      --border: rgba(255,255,255,.14);
+      --border2: rgba(255,255,255,.10);
+      --accent: #7c3aed;
+      --danger: #ef4444;
+      --warn: #f59e0b;
+      --ok: #22c55e;
+
+      --bookstore: #E3F2FD;
+      --mart: #F1F8E9;
+      --other: #F5F5F5;
+      --off: #F5F5F5;
+
+      --sat: #ffedd5;
+      --sun: #ffe4e6;
+
+      --shadow: 0 18px 60px rgba(0,0,0,.45);
+      --radius: 18px;
+
+      --cell-min-h: 56px;
+      --font: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    }
+
+    *{ box-sizing: border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background: radial-gradient(1200px 700px at 15% -10%, rgba(124,58,237,.35), transparent 60%),
+                  radial-gradient(900px 600px at 90% 0%, rgba(34,197,94,.18), transparent 60%),
+                  linear-gradient(180deg, #060914 0%, #0b1220 60%, #0b1220 100%);
+      color: var(--text);
+      font-family: var(--font);
+      letter-spacing: -0.2px;
+    }
+
+    a{ color: inherit; }
+
+    .app{
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 18px 14px 110px;
+    }
+
+    header{
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      backdrop-filter: blur(10px);
+      background: linear-gradient(180deg, rgba(11,18,32,.92), rgba(11,18,32,.55));
+      border-bottom: 1px solid var(--border2);
+    }
+
+    .topbar{
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 14px 14px 10px;
+      display:flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand{
+      display:flex;
+      gap: 10px;
+      align-items: center;
+      min-width: 260px;
+    }
+    .logo{
+      width: 40px; height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(124,58,237,.95), rgba(14,165,233,.85));
+      box-shadow: 0 12px 30px rgba(124,58,237,.30);
+      display:grid; place-items:center;
+      font-weight: 900;
+    }
+    .brand h1{ font-size: 18px; margin:0; line-height: 1.1; }
+    .brand .sub{ font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+    .actions{
+      display:flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .pill{
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.06);
+      border-radius: 999px;
+      cursor:pointer;
+      user-select:none;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .pill:active{ transform: translateY(1px); }
+
+    .badge{
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.05);
+      color: var(--muted);
+    }
+
+    .nav{
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 14px 12px;
+      display:flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .tab{
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.05);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .tab[aria-selected="true"]{
+      background: linear-gradient(135deg, rgba(124,58,237,.35), rgba(255,255,255,.08));
+      border-color: rgba(124,58,237,.6);
+    }
+
+    .panel{
+      margin-top: 14px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.04));
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panelHeader{
+      padding: 14px 14px;
+      display:flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border2);
+      flex-wrap: wrap;
+    }
+
+    .panelHeader .title{
+      display:flex;
+      gap: 12px;
+      align-items: baseline;
+      flex-wrap: wrap;
+    }
+    .panelHeader .title h2{ margin:0; font-size: 16px; }
+    .panelHeader .title .meta{ color: var(--muted); font-size: 13px; }
+
+    .panelHeader .controls{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap: wrap;
+    }
+
+    select, input[type="text"], input[type="password"], input[type="date"], input[type="color"], textarea{
+      font: inherit;
+      color: var(--text);
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      outline: none;
+    }
+    select:focus, input:focus, textarea:focus{ border-color: rgba(124,58,237,.7); }
+
+    .btn{
+      font: inherit;
+      font-weight: 800;
+      border-radius: 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .btn.primary{ background: rgba(124,58,237,.35); border-color: rgba(124,58,237,.65); }
+    .btn.danger{ background: rgba(239,68,68,.18); border-color: rgba(239,68,68,.5); }
+    .btn.ghost{ background: transparent; }
+    .btn:active{ transform: translateY(1px); }
+
+    .hint{ color: var(--muted); font-size: 12px; line-height: 1.4; }
+
+    .content{ padding: 14px; }
+
+    /* Schedule grid */
+    .gridWrap{ overflow:auto; }
+
+    table{
+      border-collapse: separate;
+      border-spacing: 0;
+      width: 100%;
+      min-width: 900px;
+    }
+
+    th, td{
+      border-right: 1px solid rgba(255,255,255,.10);
+      border-bottom: 1px solid rgba(255,255,255,.10);
+      padding: 10px;
+      vertical-align: top;
+      background: rgba(0,0,0,0);
+    }
+
+    thead th{
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(15,23,42,.92);
+      backdrop-filter: blur(8px);
+      text-align: left;
+      font-size: 13px;
+    }
+
+    th:first-child, td:first-child{
+      position: sticky;
+      left: 0;
+      z-index: 9;
+      background: rgba(15,23,42,.95);
+      backdrop-filter: blur(8px);
+    }
+
+    thead th:first-child{ z-index: 12; }
+
+    .placeCell{
+      min-width: 260px;
+    }
+
+    .placeName{ font-weight: 900; font-size: 14px; }
+    .placeMeta{ font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .dayHead{
+      min-width: 150px;
+    }
+    .dow{ display:block; font-size: 12px; color: var(--muted2); margin-top: 2px; }
+    .date{ font-weight: 900; }
+
+    .cell{
+      min-height: var(--cell-min-h);
+      border-radius: 12px;
+      border: 1px dashed rgba(255,255,255,.18);
+      background: rgba(255,255,255,.03);
+      padding: 8px;
+      cursor: pointer;
+    }
+    .cell[aria-disabled="true"]{ cursor: default; opacity: .92; }
+
+    .cellHeader{
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .tags{ display:flex; flex-wrap: wrap; gap: 6px; }
+
+    .tag{
+      display:inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.12);
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--text);
+      user-select:none;
+      max-width: 100%;
+    }
+    .tag .dot{ width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.75); flex: 0 0 auto; }
+    .tag .name{ white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
+
+    .tag.dragging{ opacity: .5; }
+
+    .dropHint{
+      font-size: 12px;
+      color: var(--muted2);
+      margin-top: 6px;
+    }
+
+    .cell.warn2{ border-color: rgba(245,158,11,.8); background: rgba(245,158,11,.12); }
+    .cell.warn3{ border-color: rgba(249,115,22,.85); background: rgba(249,115,22,.14); }
+
+    /* Category tint on place column */
+    .placeTint.bookstore{ background: linear-gradient(180deg, rgba(227,242,253,.22), rgba(15,23,42,.92)); }
+    .placeTint.mart{ background: linear-gradient(180deg, rgba(241,248,233,.22), rgba(15,23,42,.92)); }
+    .placeTint.other{ background: linear-gradient(180deg, rgba(245,245,245,.18), rgba(15,23,42,.92)); }
+
+    /* weekend tint in header */
+    .isSat{ background: rgba(255,237,213,.22) !important; }
+    .isSun{ background: rgba(255,228,230,.22) !important; }
+
+    /* Views */
+    .view{ display:none; }
+    .view.active{ display:block; }
+
+    .cards{
+      display:grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 12px;
+    }
+
+    .card{
+      grid-column: span 12;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.05);
+      border-radius: 16px;
+      padding: 14px;
+    }
+
+    @media (min-width: 900px){
+      .card.half{ grid-column: span 6; }
+      .card.third{ grid-column: span 4; }
+    }
+
+    .card h3{ margin: 0 0 10px; font-size: 15px; }
+
+    .list{
+      display:flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .item{
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.04);
+      border-radius: 14px;
+      padding: 10px 12px;
+      display:flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .item .left{ min-width: 0; }
+    .item .right{ display:flex; gap: 8px; align-items:center; flex-wrap: wrap; }
+    .item .title{ font-weight: 900; }
+    .item .sub{ font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .kpi{
+      display:flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .kpi .box{
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.04);
+      border-radius: 14px;
+      padding: 10px 12px;
+      min-width: 140px;
+    }
+    .kpi .num{ font-weight: 1000; font-size: 20px; }
+    .kpi .lbl{ font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* Floating Action Button */
+    .fab{
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 50;
+      display:flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    .fabMain{
+      width: 56px; height: 56px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: linear-gradient(135deg, rgba(124,58,237,.88), rgba(14,165,233,.55));
+      box-shadow: 0 20px 50px rgba(0,0,0,.45);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 1000;
+      font-size: 18px;
+    }
+
+    .fabMenu{ display:none; flex-direction: column; gap: 10px; align-items: flex-end; }
+    .fab.open .fabMenu{ display:flex; }
+
+    .fabBtn{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      border-radius: 16px;
+      padding: 10px 12px;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(15,23,42,.92);
+      color: var(--text);
+      cursor: pointer;
+      min-width: 210px;
+      justify-content: space-between;
+    }
+
+    .fabBtn .lbl{ font-weight: 900; }
+    .fabBtn .desc{ font-size: 12px; color: var(--muted); }
+
+    /* Modal */
+    .modalBackdrop{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.55);
+      display:none;
+      z-index: 60;
+      padding: 18px;
+      overflow:auto;
+    }
+    .modalBackdrop.open{ display:block; }
+
+    .modal{
+      max-width: 720px;
+      margin: 50px auto;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(15,23,42,.94);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .modalHeader{
+      padding: 14px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.12);
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .modalHeader h3{ margin:0; font-size: 16px; }
+
+    .modalBody{ padding: 14px; }
+    .modalFooter{
+      padding: 14px;
+      border-top: 1px solid rgba(255,255,255,.12);
+      display:flex;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    @media (min-width: 700px){
+      .grid2{ grid-template-columns: 1fr 1fr; }
+    }
+
+    .checklist{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    @media (min-width: 700px){
+      .checklist{ grid-template-columns: 1fr 1fr; }
+    }
+
+    .check{
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.04);
+      border-radius: 14px;
+      padding: 10px 12px;
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .check label{ display:flex; gap: 10px; align-items:center; font-weight: 800; }
+
+    .toast{
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 92px;
+      z-index: 80;
+      background: rgba(15,23,42,.95);
+      border: 1px solid rgba(255,255,255,.18);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      display:none;
+      max-width: calc(100vw - 24px);
+    }
+    .toast.show{ display:block; }
+
+    /* Print / export tweak */
+    .exportArea{
+      background: rgba(15,23,42,.94);
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.18);
+    }
+
+    /* Small screens */
+    @media (max-width: 520px){
+      .brand{ min-width: auto; }
+      .brand h1{ font-size: 16px; }
+      .pill{ padding: 9px 10px; }
+      .fabBtn{ min-width: 190px; }
+      table{ min-width: 760px; }
+    }
+  </style>
+
+  <link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <div class="brand" aria-label="앱 제목">
+        <div class="logo">🗓</div>
+        <div>
+          <h1>근무 스케줄 관리</h1>
+          <div class="sub">URL로 공유 · PNG로 저장 · 주차 자동 생성</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <div class="badge" id="roleBadge">보기 전용</div>
+        <button class="pill" id="btnShare" title="현재 주소를 복사합니다">🔗 URL 복사</button>
+        <button class="pill" id="btnAdmin" title="비밀번호(1234)로 편집 권한">✏️ 관리자</button>
+      </div>
+    </div>
+
+    <nav class="nav" aria-label="보기 전환">
+      <button class="tab" data-view="week" aria-selected="true">전체</button>
+      <button class="tab" data-view="person">개인별</button>
+      <button class="tab" data-view="place">장소별</button>
+      <button class="tab" data-view="month">달력</button>
+    </nav>
+  </header>
+
+  <main class="app">
+    <section class="panel">
+      <div class="panelHeader">
+        <div class="title">
+          <h2 id="weekTitle">주간 스케줄</h2>
+          <div class="meta" id="weekMeta"></div>
+        </div>
+        <div class="controls">
+          <button class="btn" id="btnPrevWeek">◀ 이전</button>
+          <button class="btn" id="btnToday">오늘</button>
+          <button class="btn" id="btnNextWeek">다음 ▶</button>
+          <button class="btn primary" id="btnNewWeek">📅 다음 주차 생성</button>
+          <button class="btn" id="btnExport">📸 PNG 저장</button>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="hint" style="margin-bottom:10px;">
+          · 보기 전용: 팀원들은 URL만 공유받아 확인합니다. · 편집: 우측 상단 <b>관리자</b> 버튼(비밀번호: <b>1234</b>). · 드래그&드롭: 팀원 태그를 셀로 끌어다 놓으면 배치됩니다(관리자 전용).
+        </div>
+
+        <div class="view active" id="view-week">
+          <div class="grid2" style="margin-bottom:12px;">
+            <div>
+              <label class="hint" for="weekSelect">주차 선택</label>
+              <select id="weekSelect" style="width:100%; margin-top:6px;"></select>
+            </div>
+            <div>
+              <label class="hint" for="filterText">빠른 필터(장소/팀원)</label>
+              <input id="filterText" type="text" placeholder="예: 인천 / 김두니" style="width:100%; margin-top:6px;" />
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:12px;">
+            <h3 style="margin-bottom:6px;">드래그해서 배치 (관리자 전용)</h3>
+            <div class="hint" style="margin-bottom:8px;">팀원 태그를 원하는 날짜/장소 칸으로 드래그하세요. (여러 명 배치 가능)</div>
+            <div class="tags" id="memberTags"></div>
+          </div>
+
+          <div class="exportArea" id="exportArea-week">
+            <div class="gridWrap">
+              <div id="weekGrid"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="view" id="view-person">
+          <div class="grid2" style="margin-bottom:12px;">
+            <div>
+              <label class="hint" for="personSelect">팀원 선택</label>
+              <select id="personSelect" style="width:100%; margin-top:6px;"></select>
+            </div>
+            <div>
+              <label class="hint" for="personWeekSelect">주차 선택</label>
+              <select id="personWeekSelect" style="width:100%; margin-top:6px;"></select>
+            </div>
+          </div>
+          <div class="exportArea" id="exportArea-person">
+            <div class="cards" id="personCards"></div>
+          </div>
+        </div>
+
+        <div class="view" id="view-place">
+          <div class="grid2" style="margin-bottom:12px;">
+            <div>
+              <label class="hint" for="placeSelect">장소 선택</label>
+              <select id="placeSelect" style="width:100%; margin-top:6px;"></select>
+            </div>
+            <div>
+              <label class="hint" for="placeWeekSelect">주차 선택</label>
+              <select id="placeWeekSelect" style="width:100%; margin-top:6px;"></select>
+            </div>
+          </div>
+          <div class="exportArea" id="exportArea-place">
+            <div class="cards" id="placeCards"></div>
+          </div>
+        </div>
+
+        <div class="view" id="view-month">
+          <div class="grid2" style="margin-bottom:12px;">
+            <div>
+              <label class="hint" for="monthSelect">월 선택</label>
+              <input id="monthSelect" type="month" style="width:100%; margin-top:6px;" />
+            </div>
+            <div>
+              <label class="hint">표시 옵션</label>
+              <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:6px;">
+                <button class="btn" id="btnMonthToday">이번 달</button>
+                <button class="btn" id="btnMonthCompact">간단히/자세히</button>
+              </div>
+            </div>
+          </div>
+          <div class="exportArea" id="exportArea-month">
+            <div class="card" id="monthCalendar"></div>
+          </div>
+        </div>
+
+        <div class="cards" style="margin-top:12px;">
+          <div class="card half">
+            <h3>데이터 백업/복원</h3>
+            <div class="hint" style="margin-bottom:10px;">브라우저(LocalStorage)에 자동 저장됩니다. 혹시 몰라 백업 파일(JSON)을 주기적으로 저장하세요.</div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn" id="btnBackup">💾 백업(JSON)</button>
+              <label class="btn" for="restoreFile" style="cursor:pointer;">📥 복원(JSON)</label>
+              <input id="restoreFile" type="file" accept="application/json" style="display:none" />
+              <button class="btn danger" id="btnReset">🧹 초기화</button>
+            </div>
+          </div>
+          <div class="card half">
+            <h3>설정(팀원/장소 관리)</h3>
+            <div class="hint" style="margin-bottom:10px;">관리자 모드에서만 변경 가능합니다. (인원 변동이 잦은 특성 반영)</div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn" id="btnManageMembers">👥 팀원 관리</button>
+              <button class="btn" id="btnManagePlaces">🏢 장소 관리</button>
+              <button class="btn" id="btnHowTo">📖 사용 방법</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <!-- Floating Action Button -->
+  <div class="fab" id="fab">
+    <div class="fabMenu" aria-label="빠른 메뉴">
+      <button class="fabBtn" id="fabEdit"><span>
+        <div class="lbl">✏️ 편집 모드</div><div class="desc">관리자 로그인/로그아웃</div></span><span>→</span></button>
+      <button class="fabBtn" id="fabNewWeek"><span>
+        <div class="lbl">📅 다음 주차</div><div class="desc">주차 템플릿 생성</div></span><span>→</span></button>
+      <button class="fabBtn" id="fabPng"><span>
+        <div class="lbl">📸 PNG 저장</div><div class="desc">현재 화면 이미지</div></span><span>→</span></button>
+      <button class="fabBtn" id="fabBackup"><span>
+        <div class="lbl">💾 백업</div><div class="desc">JSON 다운로드</div></span><span>→</span></button>
+      <button class="fabBtn" id="fabSettings"><span>
+        <div class="lbl">⚙️ 설정</div><div class="desc">팀원/장소 관리</div></span><span>→</span></button>
+    </div>
+    <button class="fabMain" id="fabMain" aria-label="빠른 메뉴 열기">≡</button>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <!-- Modal: Admin login -->
+  <div class="modalBackdrop" id="modalAdmin">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
+      <div class="modalHeader">
+        <h3 id="adminTitle">관리자 모드</h3>
+        <button class="btn ghost" data-close="modalAdmin">닫기</button>
+      </div>
+      <div class="modalBody">
+        <div class="hint" style="margin-bottom:10px;">관리자 비밀번호를 입력하면 편집 기능이 활성화됩니다. (기본: <b>1234</b>)</div>
+        <div class="grid2">
+          <div>
+            <label class="hint" for="adminPw">비밀번호</label>
+            <input id="adminPw" type="password" placeholder="1234" style="width:100%; margin-top:6px;" />
+          </div>
+          <div>
+            <label class="hint">상태</label>
+            <div style="margin-top:10px; font-weight:900;" id="adminStatus">보기 전용</div>
+            <div class="hint" id="adminStatusHint">로그인하면 셀 편집/드래그/추가·삭제가 가능합니다.</div>
+          </div>
+        </div>
+      </div>
+      <div class="modalFooter">
+        <button class="btn danger" id="btnLogout">로그아웃</button>
+        <button class="btn primary" id="btnLogin">로그인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Cell edit -->
+  <div class="modalBackdrop" id="modalCell">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cellTitle">
+      <div class="modalHeader">
+        <h3 id="cellTitle">근무자 선택</h3>
+        <button class="btn ghost" data-close="modalCell">닫기</button>
+      </div>
+      <div class="modalBody">
+        <div class="hint" id="cellMeta" style="margin-bottom:10px;"></div>
+        <div class="checklist" id="cellChecklist"></div>
+      </div>
+      <div class="modalFooter">
+        <button class="btn" id="btnClearCell">비우기</button>
+        <button class="btn primary" id="btnSaveCell">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Manage members -->
+  <div class="modalBackdrop" id="modalMembers">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="membersTitle">
+      <div class="modalHeader">
+        <h3 id="membersTitle">팀원 관리</h3>
+        <button class="btn ghost" data-close="modalMembers">닫기</button>
+      </div>
+      <div class="modalBody">
+        <div class="hint" style="margin-bottom:10px;">팀원은 <b>추가/삭제</b> 또는 <b>활성/비활성</b>이 가능합니다. 삭제해도 과거 기록은 그대로 남습니다(이름만 표시될 수 있음).</div>
+
+        <div class="card" style="margin-bottom:12px;">
+          <h3 style="margin-bottom:8px;">새 팀원 추가</h3>
+          <div class="grid2">
+            <div>
+              <label class="hint" for="newMemberName">이름</label>
+              <input id="newMemberName" type="text" placeholder="예: 홍길동" style="width:100%; margin-top:6px;" />
+            </div>
+            <div>
+              <label class="hint" for="newMemberColor">색상</label>
+              <input id="newMemberColor" type="color" value="#60a5fa" style="width:100%; margin-top:6px; height:44px;" />
+            </div>
+          </div>
+          <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+            <button class="btn primary" id="btnAddMember">추가</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom:8px;">현재 팀원</h3>
+          <div class="list" id="membersList"></div>
+        </div>
+      </div>
+      <div class="modalFooter">
+        <button class="btn" data-close="modalMembers">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Manage places -->
+  <div class="modalBackdrop" id="modalPlaces">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="placesTitle">
+      <div class="modalHeader">
+        <h3 id="placesTitle">장소 관리</h3>
+        <button class="btn ghost" data-close="modalPlaces">닫기</button>
+      </div>
+      <div class="modalBody">
+        <div class="hint" style="margin-bottom:10px;">장소는 <b>서점/마트/기타</b>로 분류됩니다. 분류에 따라 목록과 헤더가 색상으로 구분됩니다.</div>
+
+        <div class="card" style="margin-bottom:12px;">
+          <h3 style="margin-bottom:8px;">새 장소 추가</h3>
+          <div class="grid2">
+            <div>
+              <label class="hint" for="newPlaceName">장소명</label>
+              <input id="newPlaceName" type="text" placeholder="예: 영풍문고 잠실점" style="width:100%; margin-top:6px;" />
+            </div>
+            <div>
+              <label class="hint" for="newPlaceCat">분류</label>
+              <select id="newPlaceCat" style="width:100%; margin-top:6px;">
+                <option value="bookstore">서점</option>
+                <option value="mart">마트</option>
+                <option value="other">기타</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+            <button class="btn primary" id="btnAddPlace">추가</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom:8px;">현재 장소</h3>
+          <div class="list" id="placesList"></div>
+        </div>
+      </div>
+      <div class="modalFooter">
+        <button class="btn" data-close="modalPlaces">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: HowTo -->
+  <div class="modalBackdrop" id="modalHowTo">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="howtoTitle">
+      <div class="modalHeader">
+        <h3 id="howtoTitle">사용 방법(요약)</h3>
+        <button class="btn ghost" data-close="modalHowTo">닫기</button>
+      </div>
+      <div class="modalBody">
+        <div class="card">
+          <h3>1) 팀장(관리자)만 편집</h3>
+          <div class="hint">우측 상단 <b>관리자</b> → 비밀번호 <b>1234</b> 입력 → 셀 클릭/드래그로 배치하세요.</div>
+        </div>
+        <div class="card" style="margin-top:10px;">
+          <h3>2) 팀원은 URL로 보기만</h3>
+          <div class="hint">상단 <b>URL 복사</b>로 링크를 공유하면, 팀원은 보기 전용으로 확인합니다.</div>
+        </div>
+        <div class="card" style="margin-top:10px;">
+          <h3>3) PNG로 저장해 카톡에 공유</h3>
+          <div class="hint"><b>PNG 저장</b> 버튼을 누르면 현재 화면(전체/개인/장소/달력)을 이미지로 저장합니다.</div>
+        </div>
+        <div class="card" style="margin-top:10px;">
+          <h3>4) 주차 자동 생성</h3>
+          <div class="hint"><b>다음 주차 생성</b> 버튼으로 다음 주 템플릿을 만들고, 주차 선택에서 바로 이동하세요.</div>
+        </div>
+        <div class="card" style="margin-top:10px;">
+          <h3>5) 백업은 꼭!</h3>
+          <div class="hint">브라우저 저장이라, PC/휴대폰이 바뀌면 데이터가 없어질 수 있어요. 주기적으로 <b>백업(JSON)</b>을 다운로드하세요.</div>
+        </div>
+      </div>
+      <div class="modalFooter">
+        <button class="btn" data-close="modalHowTo">닫기</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- Constants ----------
+  const STORAGE_KEY = 'schedule_app_v1';
+  const ADMIN_KEY = 'schedule_admin_v1';
+  const ADMIN_PASSWORD = '1234';
+
+  function randId(){
+    // small uuid-ish generator safe to call before other functions
+    const a = crypto.getRandomValues(new Uint8Array(16));
+    a[6] = (a[6] & 0x0f) | 0x40;
+    a[8] = (a[8] & 0x3f) | 0x80;
+    const hex = [...a].map(b => b.toString(16).padStart(2,'0')).join('');
+    return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+  }
+
+  const DAY_NAMES = ['일','월','화','수','목','금','토'];
+
+  const DEFAULT_MEMBERS = [
+    { id: randId(), name: '진영희', color: '#60a5fa', active: true },
+    { id: randId(), name: '임승주', color: '#a78bfa', active: true },
+    { id: randId(), name: '김두니', color: '#34d399', active: true },
+    { id: randId(), name: '지정하', color: '#f59e0b', active: true },
+    { id: randId(), name: '이미자', color: '#fb7185', active: true },
+    { id: randId(), name: '백수연', color: '#22c55e', active: true },
+    { id: randId(), name: '임경원', color: '#38bdf8', active: true },
+    { id: randId(), name: '최형심', color: '#f472b6', active: true },
+    { id: randId(), name: '안정희', color: '#eab308', active: true },
+    { id: randId(), name: '김민지', color: '#94a3b8', active: true },
+  ];
+
+  const DEFAULT_PLACES = [
+    { id: randId(), name: '영풍문고 인천터미널점', category: 'bookstore' },
+    { id: randId(), name: '반디앤루니스 목동점', category: 'bookstore' },
+    { id: randId(), name: '더북 안양엔터식스점', category: 'bookstore' },
+    { id: randId(), name: '영풍문고 왕십리점', category: 'bookstore' },
+    { id: randId(), name: '인천 스퀘어원 (10:30-19:00)', category: 'bookstore' },
+    { id: randId(), name: '북앤북스 간석홈플러스점', category: 'bookstore' },
+    { id: randId(), name: '영풍문고 부천포도몰', category: 'bookstore' },
+    { id: randId(), name: '영풍문고 김포공항점', category: 'bookstore' },
+    { id: randId(), name: '교보문고 영등포점', category: 'bookstore' },
+    { id: randId(), name: '용산 영풍문고', category: 'bookstore' },
+    { id: randId(), name: '이마트 산본점', category: 'mart' },
+    { id: randId(), name: '이마트 오산점', category: 'mart' },
+    { id: randId(), name: '이마트 은평점', category: 'mart' },
+    { id: randId(), name: '이마트 다산점', category: 'mart' },
+    { id: randId(), name: '롯데마트 서울역점', category: 'mart' },
+  ];
+
+  // One "week" is defined by Monday start (Korean work style)
+  const DEFAULT_WEEK_START = new Date(2025, 7, 25); // 2025-08-25 (Mon). We'll show as "8월 5주차" style. User can navigate.
+
+  // ---------- State ----------
+  let state = loadState() || createDefaultState();
+  let ui = {
+    view: 'week',
+    weekId: state.weeks[0]?.id,
+    personId: null,
+    placeId: null,
+    filterText: '',
+    month: null,
+    monthCompact: true,
+    editingCell: null, // {weekId, placeId, dateKey}
+  };
+
+  // URL params for shareable view state (optional)
+  // ---------- Elements ----------
+  const el = {
+    roleBadge: document.getElementById('roleBadge'),
+    btnShare: document.getElementById('btnShare'),
+    btnAdmin: document.getElementById('btnAdmin'),
+
+    tabs: Array.from(document.querySelectorAll('.tab')),
+    weekTitle: document.getElementById('weekTitle'),
+    weekMeta: document.getElementById('weekMeta'),
+
+    btnPrevWeek: document.getElementById('btnPrevWeek'),
+    btnNextWeek: document.getElementById('btnNextWeek'),
+    btnToday: document.getElementById('btnToday'),
+    btnNewWeek: document.getElementById('btnNewWeek'),
+    btnExport: document.getElementById('btnExport'),
+
+    weekSelect: document.getElementById('weekSelect'),
+    personSelect: document.getElementById('personSelect'),
+    placeSelect: document.getElementById('placeSelect'),
+    personWeekSelect: document.getElementById('personWeekSelect'),
+    placeWeekSelect: document.getElementById('placeWeekSelect'),
+
+    filterText: document.getElementById('filterText'),
+
+    memberTags: document.getElementById('memberTags'),
+    weekGrid: document.getElementById('weekGrid'),
+
+    viewWeek: document.getElementById('view-week'),
+    viewPerson: document.getElementById('view-person'),
+    viewPlace: document.getElementById('view-place'),
+    viewMonth: document.getElementById('view-month'),
+
+    personCards: document.getElementById('personCards'),
+    placeCards: document.getElementById('placeCards'),
+
+    monthSelect: document.getElementById('monthSelect'),
+    btnMonthToday: document.getElementById('btnMonthToday'),
+    btnMonthCompact: document.getElementById('btnMonthCompact'),
+    monthCalendar: document.getElementById('monthCalendar'),
+
+    btnBackup: document.getElementById('btnBackup'),
+    restoreFile: document.getElementById('restoreFile'),
+    btnReset: document.getElementById('btnReset'),
+
+    btnManageMembers: document.getElementById('btnManageMembers'),
+    btnManagePlaces: document.getElementById('btnManagePlaces'),
+    btnHowTo: document.getElementById('btnHowTo'),
+
+    // fab
+    fab: document.getElementById('fab'),
+    fabMain: document.getElementById('fabMain'),
+    fabEdit: document.getElementById('fabEdit'),
+    fabNewWeek: document.getElementById('fabNewWeek'),
+    fabPng: document.getElementById('fabPng'),
+    fabBackup: document.getElementById('fabBackup'),
+    fabSettings: document.getElementById('fabSettings'),
+
+    // modals
+    modalAdmin: document.getElementById('modalAdmin'),
+    adminPw: document.getElementById('adminPw'),
+    adminStatus: document.getElementById('adminStatus'),
+    btnLogin: document.getElementById('btnLogin'),
+    btnLogout: document.getElementById('btnLogout'),
+
+    modalCell: document.getElementById('modalCell'),
+    cellMeta: document.getElementById('cellMeta'),
+    cellChecklist: document.getElementById('cellChecklist'),
+    btnSaveCell: document.getElementById('btnSaveCell'),
+    btnClearCell: document.getElementById('btnClearCell'),
+
+    modalMembers: document.getElementById('modalMembers'),
+    newMemberName: document.getElementById('newMemberName'),
+    newMemberColor: document.getElementById('newMemberColor'),
+    btnAddMember: document.getElementById('btnAddMember'),
+    membersList: document.getElementById('membersList'),
+
+    modalPlaces: document.getElementById('modalPlaces'),
+    newPlaceName: document.getElementById('newPlaceName'),
+    newPlaceCat: document.getElementById('newPlaceCat'),
+    btnAddPlace: document.getElementById('btnAddPlace'),
+    placesList: document.getElementById('placesList'),
+
+    modalHowTo: document.getElementById('modalHowTo'),
+
+    toast: document.getElementById('toast'),
+
+    exportAreas: {
+      week: document.getElementById('exportArea-week'),
+      person: document.getElementById('exportArea-person'),
+      place: document.getElementById('exportArea-place'),
+      month: document.getElementById('exportArea-month'),
+    }
+  };
+
+  // ---------- Init ----------
+  applyUrlParams();
+  ensureWeekExists(ui.weekId);
+  hydrateSelectors();
+  setView(ui.view); // apply initial view
+  refreshAll();
+  updateRoleUI();
+
+  // ---------- Events ----------
+  el.tabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const view = btn.dataset.view;
+      setView(view);
+    });
+  });
+
+  el.btnShare.addEventListener('click', async () => {
+    const url = new URL(location.href);
+    url.searchParams.set('view', ui.view);
+    if (ui.weekId) url.searchParams.set('week', ui.weekId);
+    if (ui.personId) url.searchParams.set('person', ui.personId);
+    if (ui.placeId) url.searchParams.set('place', ui.placeId);
+    try{
+      await navigator.clipboard.writeText(url.toString());
+      toast('URL을 복사했습니다. 팀원에게 공유하세요.');
+    }catch{
+      prompt('복사에 실패했습니다. 아래 URL을 복사하세요.', url.toString());
+    }
+  });
+
+  el.btnAdmin.addEventListener('click', () => openModal('modalAdmin'));
+
+  document.querySelectorAll('[data-close]').forEach(btn => {
+    btn.addEventListener('click', () => closeModal(btn.dataset.close));
+  });
+
+  el.btnLogin.addEventListener('click', () => {
+    const pw = el.adminPw.value.trim();
+    if (pw === ADMIN_PASSWORD){
+      localStorage.setItem(ADMIN_KEY, '1');
+      el.adminPw.value = '';
+      toast('관리자 모드 활성화');
+      updateRoleUI();
+      refreshAll();
+      closeModal('modalAdmin');
+    } else {
+      toast('비밀번호가 틀렸습니다.');
+    }
+  });
+
+  el.btnLogout.addEventListener('click', () => {
+    localStorage.removeItem(ADMIN_KEY);
+    toast('로그아웃(보기 전용)');
+    updateRoleUI();
+    refreshAll();
+    closeModal('modalAdmin');
+  });
+
+  el.btnPrevWeek.addEventListener('click', () => jumpWeek(-1));
+  el.btnNextWeek.addEventListener('click', () => jumpWeek(1));
+  el.btnToday.addEventListener('click', () => goToTodayWeek());
+  el.btnNewWeek.addEventListener('click', () => createNextWeek());
+
+  el.weekSelect.addEventListener('change', () => {
+    ui.weekId = el.weekSelect.value;
+    refreshAll();
+    syncUrlParams();
+  });
+
+  el.personWeekSelect.addEventListener('change', () => {
+    ui.weekId = el.personWeekSelect.value;
+    refreshAll();
+    syncUrlParams();
+  });
+
+  el.placeWeekSelect.addEventListener('change', () => {
+    ui.weekId = el.placeWeekSelect.value;
+    refreshAll();
+    syncUrlParams();
+  });
+
+  el.personSelect.addEventListener('change', () => {
+    ui.personId = el.personSelect.value;
+    refreshAll();
+    syncUrlParams();
+  });
+
+  el.placeSelect.addEventListener('change', () => {
+    ui.placeId = el.placeSelect.value;
+    refreshAll();
+    syncUrlParams();
+  });
+
+  el.filterText.addEventListener('input', () => {
+    ui.filterText = el.filterText.value;
+    refreshWeekGrid();
+  });
+
+  el.btnExport.addEventListener('click', () => exportCurrentViewPng());
+
+  el.btnBackup.addEventListener('click', () => downloadBackup());
+  el.restoreFile.addEventListener('change', (e) => restoreBackup(e.target.files?.[0]));
+  el.btnReset.addEventListener('click', () => resetAll());
+
+  el.btnManageMembers.addEventListener('click', () => {
+    if (!isAdmin()) return toast('관리자 모드에서만 가능합니다.');
+    openModal('modalMembers');
+    renderMembersList();
+  });
+
+  el.btnManagePlaces.addEventListener('click', () => {
+    if (!isAdmin()) return toast('관리자 모드에서만 가능합니다.');
+    openModal('modalPlaces');
+    renderPlacesList();
+  });
+
+  el.btnHowTo.addEventListener('click', () => openModal('modalHowTo'));
+
+  el.btnAddMember.addEventListener('click', () => {
+    if (!isAdmin()) return;
+    const name = el.newMemberName.value.trim();
+    if (!name) return toast('이름을 입력하세요.');
+    const color = el.newMemberColor.value || '#60a5fa';
+    state.members.push({ id: cryptoId(), name, color, active: true });
+    persist();
+    el.newMemberName.value = '';
+    toast('팀원을 추가했습니다.');
+    hydrateSelectors();
+    refreshAll();
+    renderMembersList();
+  });
+
+  el.btnAddPlace.addEventListener('click', () => {
+    if (!isAdmin()) return;
+    const name = el.newPlaceName.value.trim();
+    if (!name) return toast('장소명을 입력하세요.');
+    const category = el.newPlaceCat.value;
+    state.places.push({ id: cryptoId(), name, category });
+    persist();
+    el.newPlaceName.value = '';
+    toast('장소를 추가했습니다.');
+    hydrateSelectors();
+    refreshAll();
+    renderPlacesList();
+  });
+
+  el.btnSaveCell.addEventListener('click', () => saveCellAssignments());
+  el.btnClearCell.addEventListener('click', () => clearCellAssignments());
+
+  // FAB
+  el.fabMain.addEventListener('click', () => {
+    el.fab.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!el.fab.contains(e.target) && el.fab.classList.contains('open')) el.fab.classList.remove('open');
+  });
+
+  el.fabEdit.addEventListener('click', () => { el.fab.classList.remove('open'); openModal('modalAdmin'); });
+  el.fabNewWeek.addEventListener('click', () => { el.fab.classList.remove('open'); createNextWeek(); });
+  el.fabPng.addEventListener('click', () => { el.fab.classList.remove('open'); exportCurrentViewPng(); });
+  el.fabBackup.addEventListener('click', () => { el.fab.classList.remove('open'); downloadBackup(); });
+  el.fabSettings.addEventListener('click', () => {
+    el.fab.classList.remove('open');
+    if (!isAdmin()) return toast('관리자 모드에서만 가능합니다.');
+    openModal('modalMembers');
+    renderMembersList();
+  });
+
+  // ---------- Functions ----------
+  function isAdmin(){
+    return localStorage.getItem(ADMIN_KEY) === '1';
+  }
+
+  function updateRoleUI(){
+    const admin = isAdmin();
+    el.roleBadge.textContent = admin ? '관리자(편집 가능)' : '보기 전용';
+    el.roleBadge.style.borderColor = admin ? 'rgba(34,197,94,.55)' : 'rgba(255,255,255,.18)';
+    el.roleBadge.style.background = admin ? 'rgba(34,197,94,.10)' : 'rgba(255,255,255,.05)';
+
+    el.adminStatus.textContent = admin ? '관리자(편집 가능)' : '보기 전용';
+    el.adminStatus.style.color = admin ? 'var(--ok)' : 'var(--text)';
+
+    el.btnNewWeek.disabled = !admin;
+    el.btnNewWeek.style.opacity = admin ? '1' : '.55';
+    el.btnNewWeek.title = admin ? '' : '관리자 모드에서만 가능';
+  }
+
+  function setView(view){
+    ui.view = view;
+    el.tabs.forEach(t => t.setAttribute('aria-selected', String(t.dataset.view === view)));
+    el.viewWeek.classList.toggle('active', view === 'week');
+    el.viewPerson.classList.toggle('active', view === 'person');
+    el.viewPlace.classList.toggle('active', view === 'place');
+    el.viewMonth.classList.toggle('active', view === 'month');
+    refreshAll();
+    syncUrlParams();
+  }
+
+  function hydrateSelectors(){
+    // weeks
+    el.weekSelect.innerHTML = '';
+    el.personWeekSelect.innerHTML = '';
+    el.placeWeekSelect.innerHTML = '';
+    getWeeksSorted().forEach(w => {
+      const opt = new Option(weekLabel(w), w.id);
+      el.weekSelect.add(opt.cloneNode(true));
+      el.personWeekSelect.add(opt.cloneNode(true));
+      el.placeWeekSelect.add(opt.cloneNode(true));
+    });
+
+    // persons (active first)
+    el.personSelect.innerHTML = '';
+    getMembersSorted().forEach(m => {
+      const suffix = m.active ? '' : ' (비활성)';
+      el.personSelect.add(new Option(m.name + suffix, m.id));
+    });
+
+    // places
+    el.placeSelect.innerHTML = '';
+    getPlacesSorted().forEach(p => {
+      el.placeSelect.add(new Option(placeLabel(p), p.id));
+    });
+
+    // ensure defaults
+    if (!ui.weekId || !state.weeks.some(w => w.id === ui.weekId)) ui.weekId = state.weeks[0]?.id;
+    if (!ui.personId || !state.members.some(m => m.id === ui.personId)) ui.personId = state.members[0]?.id;
+    if (!ui.placeId || !state.places.some(p => p.id === ui.placeId)) ui.placeId = state.places[0]?.id;
+
+    el.weekSelect.value = ui.weekId;
+    el.personWeekSelect.value = ui.weekId;
+    el.placeWeekSelect.value = ui.weekId;
+    el.personSelect.value = ui.personId;
+    el.placeSelect.value = ui.placeId;
+
+    // month input
+    if (!ui.month){
+      const now = new Date();
+      ui.month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    }
+    el.monthSelect.value = ui.month;
+  }
+
+  function refreshAll(){
+    ensureWeekExists(ui.weekId);
+
+    // set header
+    const w = state.weeks.find(x => x.id === ui.weekId);
+    if (w){
+      el.weekTitle.textContent = viewTitle();
+      el.weekMeta.textContent = `${formatDateKr(new Date(w.startDate))} ~ ${formatDateKr(addDays(new Date(w.startDate), 6))}`;
+
+      el.weekSelect.value = w.id;
+      el.personWeekSelect.value = w.id;
+      el.placeWeekSelect.value = w.id;
+    }
+
+    // tags
+    renderMemberTags();
+
+    // views
+    refreshWeekGrid();
+    refreshPersonView();
+    refreshPlaceView();
+    refreshMonthView();
+
+    // consecutive warnings
+    computeConsecutiveWarningsForWeek(ui.weekId);
+    // Re-render week grid to show warnings
+    refreshWeekGrid();
+  }
+
+  function viewTitle(){
+    if (ui.view === 'week') return '주간 스케줄(전체)';
+    if (ui.view === 'person') return '개인별 스케줄';
+    if (ui.view === 'place') return '장소별 스케줄';
+    if (ui.view === 'month') return '월간 달력';
+    return '근무 스케줄';
+  }
+
+  function refreshWeekGrid(){
+    const week = state.weeks.find(w => w.id === ui.weekId);
+    if (!week) return;
+
+    const dates = getWeekDateKeys(week.startDate);
+    const filter = ui.filterText.trim().toLowerCase();
+
+    // Filter places by text
+    const places = getPlacesSorted().filter(p => {
+      if (!filter) return true;
+      if (p.name.toLowerCase().includes(filter)) return true;
+      // also filter by member name: if any cell contains that member
+      const memberHit = state.members.some(m => m.name.toLowerCase().includes(filter));
+      if (!memberHit) return false;
+      const targetMemberNames = state.members.filter(m => m.name.toLowerCase().includes(filter)).map(m => m.name);
+      const row = week.assignments[p.id] || {};
+      return dates.some(dk => {
+        const list = row[dk] || [];
+        return list.some(mid => {
+          const mm = findMember(mid);
+          const nm = mm?.name || mid;
+          return targetMemberNames.includes(nm);
+        });
+      });
+    });
+
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+
+    const th0 = document.createElement('th');
+    th0.className = 'placeCell';
+    th0.textContent = '장소';
+    trh.appendChild(th0);
+
+    dates.forEach(dk => {
+      const d = parseDateKey(dk);
+      const th = document.createElement('th');
+      th.className = 'dayHead';
+      const dow = d.getDay();
+      if (dow === 6) th.classList.add('isSat');
+      if (dow === 0) th.classList.add('isSun');
+      th.innerHTML = `<span class="date">${d.getMonth()+1}/${d.getDate()}</span><span class="dow">${DAY_NAMES[dow]}</span>`;
+      trh.appendChild(th);
+    });
+
+    thead.appendChild(trh);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+
+    places.forEach(p => {
+      const tr = document.createElement('tr');
+
+      const tdPlace = document.createElement('td');
+      tdPlace.className = `placeCell placeTint ${p.category}`;
+      tdPlace.innerHTML = `<div class="placeName">${escapeHtml(p.name)}</div><div class="placeMeta">${categoryLabel(p.category)}</div>`;
+      tr.appendChild(tdPlace);
+
+      dates.forEach(dk => {
+        const td = document.createElement('td');
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+
+        const warnClass = getWarnClass(week, p.id, dk);
+        if (warnClass) cell.classList.add(warnClass);
+
+        cell.setAttribute('data-week', week.id);
+        cell.setAttribute('data-place', p.id);
+        cell.setAttribute('data-date', dk);
+
+        const admin = isAdmin();
+        cell.setAttribute('aria-disabled', String(!admin));
+
+        const assigned = (week.assignments[p.id]?.[dk] || []).slice();
+
+        cell.addEventListener('click', () => {
+          if (!isAdmin()) return toast('보기 전용입니다. 관리자 모드에서만 편집할 수 있어요.');
+          openCellEditor(week.id, p.id, dk);
+        });
+
+        // drag drop
+        cell.addEventListener('dragover', (e) => {
+          if (!isAdmin()) return;
+          e.preventDefault();
+        });
+        cell.addEventListener('drop', (e) => {
+          if (!isAdmin()) return;
+          e.preventDefault();
+          const memberId = e.dataTransfer.getData('text/memberId');
+          if (!memberId) return;
+          addMemberToCell(week.id, p.id, dk, memberId);
+        });
+
+        const header = document.createElement('div');
+        header.className = 'cellHeader';
+        header.innerHTML = `<span class="hint">${assigned.length ? assigned.length+'명' : '빈칸'}</span>`;
+        cell.appendChild(header);
+
+        const tags = document.createElement('div');
+        tags.className = 'tags';
+        assigned.forEach(mid => {
+          const member = findMember(mid);
+          const name = member?.name || mid;
+          const color = member?.color || '#cbd5e1';
+          tags.appendChild(renderTag(name, color, member?.active === false));
+        });
+        cell.appendChild(tags);
+
+        if (isAdmin()){
+          const hint = document.createElement('div');
+          hint.className = 'dropHint';
+          hint.textContent = '드래그로 추가 · 클릭으로 선택';
+          cell.appendChild(hint);
+        }
+
+        td.appendChild(cell);
+        tr.appendChild(td);
+      });
+
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    el.weekGrid.innerHTML = '';
+    el.weekGrid.appendChild(table);
+  }
+
+  function refreshPersonView(){
+    if (ui.view !== 'person') return;
+
+    const week = state.weeks.find(w => w.id === ui.weekId);
+    if (!week) return;
+
+    const person = state.members.find(m => m.id === ui.personId);
+    if (!person) return;
+
+    const dates = getWeekDateKeys(week.startDate);
+    const items = [];
+
+    for (const p of getPlacesSorted()){
+      for (const dk of dates){
+        const arr = week.assignments[p.id]?.[dk] || [];
+        if (arr.includes(person.id)){
+          items.push({ dateKey: dk, place: p });
+        }
+      }
+    }
+
+    items.sort((a,b) => a.dateKey.localeCompare(b.dateKey));
+
+    el.personCards.innerHTML = '';
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `<h3>👤 ${escapeHtml(person.name)}님의 스케줄</h3>`;
+
+    const list = document.createElement('div');
+    list.className = 'list';
+
+    if (!items.length){
+      const empty = document.createElement('div');
+      empty.className = 'hint';
+      empty.textContent = '이번 주 배정된 근무가 없습니다.';
+      list.appendChild(empty);
+    } else {
+      for (const it of items){
+        const d = parseDateKey(it.dateKey);
+        const dow = DAY_NAMES[d.getDay()];
+        const li = document.createElement('div');
+        li.className = 'item';
+        li.innerHTML = `<div class="left"><div class="title">📅 ${d.getMonth()+1}/${d.getDate()} (${dow})</div><div class="sub">${escapeHtml(it.place.name)} · ${categoryLabel(it.place.category)}</div></div>`;
+        list.appendChild(li);
+      }
+    }
+
+    card.appendChild(list);
+
+    const kpi = document.createElement('div');
+    kpi.className = 'kpi';
+    kpi.innerHTML = `<div class="box"><div class="num">${items.length}</div><div class="lbl">이번 주 근무(배정) 건수</div></div>`;
+
+    card.appendChild(kpi);
+
+    el.personCards.appendChild(card);
+
+    // also add a mini weekly grid for that person
+    const mini = document.createElement('div');
+    mini.className = 'card';
+    mini.innerHTML = `<h3>주간 보기</h3><div class="hint">장소별 전체에서, ${escapeHtml(person.name)}만 표시합니다.</div>`;
+    const miniTable = renderMiniWeekForPerson(week, person.id);
+    mini.appendChild(miniTable);
+    el.personCards.appendChild(mini);
+  }
+
+  function refreshPlaceView(){
+    if (ui.view !== 'place') return;
+
+    const week = state.weeks.find(w => w.id === ui.weekId);
+    if (!week) return;
+
+    const place = state.places.find(p => p.id === ui.placeId);
+    if (!place) return;
+
+    const dates = getWeekDateKeys(week.startDate);
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `<h3>🏢 ${escapeHtml(place.name)}</h3><div class="hint">${categoryLabel(place.category)} · 주간 배정</div>`;
+
+    const list = document.createElement('div');
+    list.className = 'list';
+
+    dates.forEach(dk => {
+      const d = parseDateKey(dk);
+      const dow = DAY_NAMES[d.getDay()];
+      const arr = week.assignments[place.id]?.[dk] || [];
+      const item = document.createElement('div');
+      item.className = 'item';
+      item.innerHTML = `<div class="left"><div class="title">📅 ${d.getMonth()+1}/${d.getDate()} (${dow})</div><div class="sub">${arr.length ? arr.map(mid => escapeHtml(findMember(mid)?.name || mid)).join(', ') : '배정 없음'}</div></div>`;
+      list.appendChild(item);
+    });
+
+    card.appendChild(list);
+
+    el.placeCards.innerHTML = '';
+    el.placeCards.appendChild(card);
+  }
+
+  function refreshMonthView(){
+    if (ui.view !== 'month') return;
+
+    el.monthSelect.onchange = () => {
+      ui.month = el.monthSelect.value;
+      refreshMonthView();
+      syncUrlParams();
+    };
+
+    el.btnMonthToday.onclick = () => {
+      const now = new Date();
+      ui.month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      el.monthSelect.value = ui.month;
+      refreshMonthView();
+    };
+
+    el.btnMonthCompact.onclick = () => {
+      ui.monthCompact = !ui.monthCompact;
+      toast(ui.monthCompact ? '달력: 간단히' : '달력: 자세히');
+      refreshMonthView();
+    };
+
+    const [yy, mm] = ui.month.split('-').map(Number);
+    const first = new Date(yy, mm-1, 1);
+    const last = new Date(yy, mm, 0);
+    const startDow = first.getDay();
+
+    // Build a lookup from all weeks assignments for that month
+    const lookup = buildMonthLookup(yy, mm-1);
+
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `<h3 style="margin:0 0 10px;">📆 ${yy}년 ${mm}월</h3><div class="hint" style="margin-bottom:12px;">칸을 클릭하면 해당 주차로 이동합니다(보기 전환은 유지).</div>`;
+
+    const grid = document.createElement('div');
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = 'repeat(7, 1fr)';
+    grid.style.gap = '8px';
+
+    // day headers
+    DAY_NAMES.forEach((n, i) => {
+      const h = document.createElement('div');
+      h.style.padding = '8px 10px';
+      h.style.border = '1px solid rgba(255,255,255,.12)';
+      h.style.borderRadius = '12px';
+      h.style.background = 'rgba(255,255,255,.04)';
+      h.style.fontWeight = '900';
+      h.style.fontSize = '12px';
+      h.style.textAlign = 'center';
+      if (i === 6) h.style.background = 'rgba(255,237,213,.12)';
+      if (i === 0) h.style.background = 'rgba(255,228,230,.12)';
+      h.textContent = n;
+      grid.appendChild(h);
+    });
+
+    // empty cells
+    for (let i=0;i<startDow;i++){
+      grid.appendChild(blankCalCell());
+    }
+
+    for (let day=1; day<=last.getDate(); day++){
+      const d = new Date(yy, mm-1, day);
+      const dk = toDateKey(d);
+      const cell = document.createElement('div');
+      cell.style.border = '1px solid rgba(255,255,255,.12)';
+      cell.style.borderRadius = '14px';
+      cell.style.background = 'rgba(255,255,255,.04)';
+      cell.style.padding = '10px 10px';
+      cell.style.minHeight = ui.monthCompact ? '78px' : '120px';
+      cell.style.cursor = 'pointer';
+
+      if (d.getDay() === 6) cell.style.background = 'rgba(255,237,213,.10)';
+      if (d.getDay() === 0) cell.style.background = 'rgba(255,228,230,.10)';
+
+      const info = lookup[dk];
+      const count = info?.count || 0;
+      const top = document.createElement('div');
+      top.style.display = 'flex';
+      top.style.justifyContent = 'space-between';
+      top.style.alignItems = 'baseline';
+      top.innerHTML = `<div style="font-weight:1000;">${day}</div><div class="hint">${count ? count+'건' : ''}</div>`;
+      cell.appendChild(top);
+
+      if (!ui.monthCompact && info){
+        const mini = document.createElement('div');
+        mini.style.marginTop = '8px';
+        mini.style.display = 'flex';
+        mini.style.flexDirection = 'column';
+        mini.style.gap = '6px';
+        const lines = info.lines.slice(0, 3);
+        lines.forEach(line => {
+          const div = document.createElement('div');
+          div.className = 'hint';
+          div.textContent = line;
+          mini.appendChild(div);
+        });
+        if (info.lines.length > 3){
+          const more = document.createElement('div');
+          more.className = 'hint';
+          more.textContent = `+${info.lines.length-3}건 더...`;
+          mini.appendChild(more);
+        }
+        cell.appendChild(mini);
+      }
+
+      cell.addEventListener('click', () => {
+        const weekId = findWeekIdForDate(d);
+        if (weekId){
+          ui.weekId = weekId;
+          hydrateSelectors();
+          setView('week');
+          el.weekSelect.value = weekId;
+          refreshAll();
+          toast('해당 주차로 이동했습니다.');
+        }
+      });
+
+      grid.appendChild(cell);
+    }
+
+    // fill to end row
+    const total = 7 + startDow + last.getDate(); // including headers row
+    const remainder = total % 7;
+    const toAdd = remainder === 0 ? 0 : (7 - remainder);
+    for (let i=0;i<toAdd;i++) grid.appendChild(blankCalCell());
+
+    el.monthCalendar.innerHTML = '';
+    wrap.appendChild(grid);
+    el.monthCalendar.appendChild(wrap);
+  }
+
+  function blankCalCell(){
+    const cell = document.createElement('div');
+    cell.style.border = '1px dashed rgba(255,255,255,.12)';
+    cell.style.borderRadius = '14px';
+    cell.style.background = 'rgba(255,255,255,.02)';
+    cell.style.minHeight = ui.monthCompact ? '78px' : '120px';
+    return cell;
+  }
+
+  function renderMemberTags(){
+    const admin = isAdmin();
+    el.memberTags.innerHTML = '';
+    const members = getMembersSorted().filter(m => m.active);
+    members.forEach(m => {
+      const t = renderTag(m.name, m.color, false);
+      t.setAttribute('draggable', admin ? 'true' : 'false');
+      t.title = admin ? '드래그해서 배치' : '보기 전용';
+      t.addEventListener('dragstart', (e) => {
+        if (!isAdmin()) return;
+        t.classList.add('dragging');
+        e.dataTransfer.setData('text/memberId', m.id);
+        e.dataTransfer.effectAllowed = 'copy';
+      });
+      t.addEventListener('dragend', () => t.classList.remove('dragging'));
+      el.memberTags.appendChild(t);
+    });
+  }
+
+  function renderTag(name, color, inactive){
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.innerHTML = `<span class="dot"></span><span class="name"></span>`;
+    tag.querySelector('.dot').style.background = color;
+    tag.querySelector('.name').textContent = name + (inactive ? ' (비)' : '');
+    return tag;
+  }
+
+  function openCellEditor(weekId, placeId, dateKey){
+    ui.editingCell = { weekId, placeId, dateKey };
+    const week = state.weeks.find(w => w.id === weekId);
+    const place = state.places.find(p => p.id === placeId);
+    if (!week || !place) return;
+
+    const d = parseDateKey(dateKey);
+    const dow = DAY_NAMES[d.getDay()];
+    el.cellMeta.innerHTML = `<b>${escapeHtml(place.name)}</b> · ${formatDateKr(d)} (${dow})`;
+
+    const assigned = new Set(week.assignments[placeId]?.[dateKey] || []);
+
+    el.cellChecklist.innerHTML = '';
+    getMembersSorted().forEach(m => {
+      const div = document.createElement('div');
+      div.className = 'check';
+      div.innerHTML = `
+        <label>
+          <input type="checkbox" data-mid="${m.id}" ${assigned.has(m.id) ? 'checked' : ''} ${m.active ? '' : 'disabled'} />
+          <span>${escapeHtml(m.name)}${m.active ? '' : ' (비활성)'}</span>
+        </label>
+        <span class="badge" style="border-color: ${m.color}55;">색</span>
+      `;
+      el.cellChecklist.appendChild(div);
+    });
+
+    openModal('modalCell');
+  }
+
+  function saveCellAssignments(){
+    if (!isAdmin()) return;
+    const c = ui.editingCell;
+    if (!c) return;
+    const week = state.weeks.find(w => w.id === c.weekId);
+    if (!week) return;
+
+    const mids = Array.from(el.cellChecklist.querySelectorAll('input[type="checkbox"]'))
+      .filter(cb => cb.checked)
+      .map(cb => cb.dataset.mid);
+
+    week.assignments[c.placeId] ||= {};
+    week.assignments[c.placeId][c.dateKey] = mids;
+
+    persist();
+    computeConsecutiveWarningsForWeek(week.id);
+    refreshWeekGrid();
+    refreshPersonView();
+    refreshPlaceView();
+    closeModal('modalCell');
+    toast('저장했습니다.');
+  }
+
+  function clearCellAssignments(){
+    if (!isAdmin()) return;
+    const c = ui.editingCell;
+    if (!c) return;
+    const week = state.weeks.find(w => w.id === c.weekId);
+    if (!week) return;
+
+    week.assignments[c.placeId] ||= {};
+    week.assignments[c.placeId][c.dateKey] = [];
+
+    persist();
+    computeConsecutiveWarningsForWeek(week.id);
+    refreshWeekGrid();
+    refreshPersonView();
+    refreshPlaceView();
+    closeModal('modalCell');
+    toast('비웠습니다.');
+  }
+
+  function addMemberToCell(weekId, placeId, dateKey, memberId){
+    if (!isAdmin()) return;
+    const week = state.weeks.find(w => w.id === weekId);
+    if (!week) return;
+
+    week.assignments[placeId] ||= {};
+    const arr = week.assignments[placeId][dateKey] ||= [];
+    if (!arr.includes(memberId)) arr.push(memberId);
+
+    persist();
+    computeConsecutiveWarningsForWeek(week.id);
+    refreshWeekGrid();
+    refreshPersonView();
+    refreshPlaceView();
+  }
+
+  function computeConsecutiveWarningsForWeek(weekId){
+    const week = state.weeks.find(w => w.id === weekId);
+    if (!week) return;
+
+    // Reset
+    week.warnings = {};
+
+    const dates = getWeekDateKeys(week.startDate);
+    // For each member, check for same place consecutive days.
+    const memberIds = state.members.map(m => m.id);
+
+    for (const mid of memberIds){
+      // Build array per day of placeIds assigned
+      const perDay = dates.map(dk => {
+        const assignedPlaces = [];
+        for (const p of state.places){
+          const arr = week.assignments[p.id]?.[dk] || [];
+          if (arr.includes(mid)) assignedPlaces.push(p.id);
+        }
+        return { dk, places: assignedPlaces };
+      });
+
+      // If a member is assigned to multiple places in same day, we won't apply consecutive same-place warning unless intersection on next day.
+      for (let i=0;i<perDay.length;i++){
+        for (const pid of perDay[i].places){
+          let streak = 1;
+          for (let j=i+1;j<perDay.length;j++){
+            if (perDay[j].places.includes(pid)) streak++;
+            else break;
+          }
+          if (streak >= 2){
+            for (let k=0;k<streak;k++){
+              const dk = perDay[i+k].dk;
+              week.warnings[pid] ||= {};
+              const level = streak >= 3 ? 3 : 2;
+              const prev = week.warnings[pid][dk] || 0;
+              week.warnings[pid][dk] = Math.max(prev, level);
+            }
+          }
+        }
+      }
+    }
+
+    persist();
+  }
+
+  function getWarnClass(week, placeId, dateKey){
+    const lvl = week.warnings?.[placeId]?.[dateKey] || 0;
+    if (lvl >= 3) return 'warn3';
+    if (lvl === 2) return 'warn2';
+    return '';
+  }
+
+  function renderMiniWeekForPerson(week, memberId){
+    const dates = getWeekDateKeys(week.startDate);
+    const table = document.createElement('table');
+    table.style.minWidth = '700px';
+
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+    const th0 = document.createElement('th');
+    th0.textContent = '장소';
+    th0.className = 'placeCell';
+    trh.appendChild(th0);
+
+    dates.forEach(dk => {
+      const d = parseDateKey(dk);
+      const th = document.createElement('th');
+      const dow = d.getDay();
+      if (dow === 6) th.classList.add('isSat');
+      if (dow === 0) th.classList.add('isSun');
+      th.innerHTML = `<span class="date">${d.getMonth()+1}/${d.getDate()}</span><span class="dow">${DAY_NAMES[dow]}</span>`;
+      trh.appendChild(th);
+    });
+
+    thead.appendChild(trh);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    getPlacesSorted().forEach(p => {
+      const tr = document.createElement('tr');
+      const tdP = document.createElement('td');
+      tdP.className = `placeCell placeTint ${p.category}`;
+      tdP.innerHTML = `<div class="placeName">${escapeHtml(p.name)}</div><div class="placeMeta">${categoryLabel(p.category)}</div>`;
+      tr.appendChild(tdP);
+
+      dates.forEach(dk => {
+        const td = document.createElement('td');
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.setAttribute('aria-disabled','true');
+
+        const arr = week.assignments[p.id]?.[dk] || [];
+        const has = arr.includes(memberId);
+
+        if (has){
+          const member = findMember(memberId);
+          cell.style.borderStyle = 'solid';
+          cell.style.borderColor = member?.color ? member.color + 'aa' : 'rgba(124,58,237,.5)';
+          const tags = document.createElement('div');
+          tags.className = 'tags';
+          tags.appendChild(renderTag(member?.name || '배정', member?.color || '#cbd5e1', false));
+          cell.appendChild(tags);
+        } else {
+          cell.innerHTML = `<div class="hint">-</div>`;
+        }
+
+        td.appendChild(cell);
+        tr.appendChild(td);
+      });
+
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    const wrap = document.createElement('div');
+    wrap.className = 'gridWrap';
+    wrap.appendChild(table);
+    return wrap;
+  }
+
+  function renderMembersList(){
+    el.membersList.innerHTML = '';
+    getMembersSorted(true).forEach(m => {
+      const row = document.createElement('div');
+      row.className = 'item';
+      row.innerHTML = `
+        <div class="left">
+          <div class="title">${escapeHtml(m.name)}</div>
+          <div class="sub">상태: ${m.active ? '활성' : '비활성'} · 색상: <span style="color:${m.color}; font-weight:900;">${m.color}</span></div>
+        </div>
+        <div class="right">
+          <button class="btn" data-act="toggle">${m.active ? '비활성' : '활성'}</button>
+          <button class="btn" data-act="rename">이름변경</button>
+          <button class="btn" data-act="color">색상</button>
+          <button class="btn danger" data-act="delete">삭제</button>
+        </div>
+      `;
+
+      row.querySelector('[data-act="toggle"]').addEventListener('click', () => {
+        m.active = !m.active;
+        persist();
+        hydrateSelectors();
+        refreshAll();
+        renderMembersList();
+      });
+
+      row.querySelector('[data-act="rename"]').addEventListener('click', () => {
+        const name = prompt('새 이름', m.name);
+        if (!name) return;
+        m.name = name.trim();
+        persist();
+        hydrateSelectors();
+        refreshAll();
+        renderMembersList();
+      });
+
+      row.querySelector('[data-act="color"]').addEventListener('click', () => {
+        const color = prompt('색상 HEX (예: #60a5fa)', m.color);
+        if (!color) return;
+        if (!/^#[0-9a-fA-F]{6}$/.test(color.trim())) return toast('형식이 올바르지 않습니다.');
+        m.color = color.trim();
+        persist();
+        hydrateSelectors();
+        refreshAll();
+        renderMembersList();
+      });
+
+      row.querySelector('[data-act="delete"]').addEventListener('click', () => {
+        if (!confirm(`정말 삭제할까요? (과거 기록은 남을 수 있습니다)\n- ${m.name}`)) return;
+        state.members = state.members.filter(x => x.id !== m.id);
+        persist();
+        hydrateSelectors();
+        refreshAll();
+        renderMembersList();
+      });
+
+      el.membersList.appendChild(row);
+    });
+  }
+
+  function renderPlacesList(){
+    el.placesList.innerHTML = '';
+    getPlacesSorted(true).forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'item';
+      row.innerHTML = `
+        <div class="left">
+          <div class="title">${escapeHtml(p.name)}</div>
+          <div class="sub">분류: ${categoryLabel(p.category)}</div>
+        </div>
+        <div class="right">
+          <button class="btn" data-act="cat">분류변경</button>
+          <button class="btn" data-act="rename">이름변경</button>
+          <button class="btn danger" data-act="delete">삭제</button>
+        </div>
+      `;
+
+      row.querySelector('[data-act="cat"]').addEventListener('click', () => {
+        const cat = prompt('분류 입력: bookstore / mart / other', p.category);
+        if (!cat) return;
+        if (!['bookstore','mart','other'].includes(cat.trim())) return toast('분류가 올바르지 않습니다.');
+        p.category = cat.trim();
+        persist();
+        hydrateSelectors();
+        refreshAll();
+        renderPlacesList();
+      });
+
+      row.querySelector('[data-act="rename"]').addEventListener('click', () => {
+        const name = prompt('새 장소명', p.name);
+        if (!name) return;
+        p.name = name.trim();
+        persist();
+        hydrateSelectors();
+        refreshAll();
+        renderPlacesList();
+      });
+
+      row.querySelector('[data-act="delete"]').addEventListener('click', () => {
+        if (!confirm(`정말 삭제할까요? (과거 기록은 남을 수 있습니다)\n- ${p.name}`)) return;
+        state.places = state.places.filter(x => x.id !== p.id);
+        // remove assignments
+        state.weeks.forEach(w => { delete w.assignments[p.id]; delete w.warnings?.[p.id]; });
+        persist();
+        hydrateSelectors();
+        refreshAll();
+        renderPlacesList();
+      });
+
+      el.placesList.appendChild(row);
+    });
+  }
+
+  function createNextWeek(){
+    if (!isAdmin()) return toast('관리자 모드에서만 가능합니다.');
+    const weeks = getWeeksSorted();
+    const last = weeks[weeks.length-1];
+    const nextStart = addDays(new Date(last.startDate), 7);
+    const newWeek = makeWeek(nextStart);
+    state.weeks.push(newWeek);
+    persist();
+    hydrateSelectors();
+    ui.weekId = newWeek.id;
+    toast('다음 주차를 생성했습니다.');
+    refreshAll();
+    syncUrlParams();
+  }
+
+  function jumpWeek(delta){
+    const weeks = getWeeksSorted();
+    const idx = weeks.findIndex(w => w.id === ui.weekId);
+    const nextIdx = Math.min(weeks.length-1, Math.max(0, idx + delta));
+    ui.weekId = weeks[nextIdx].id;
+    hydrateSelectors();
+    refreshAll();
+    syncUrlParams();
+  }
+
+  function goToTodayWeek(){
+    const today = new Date();
+    const weekId = findWeekIdForDate(today);
+    if (!weekId){
+      // create enough weeks to include today
+      const weeks = getWeeksSorted();
+      let last = weeks[weeks.length-1];
+      while (new Date(last.startDate) < startOfWeekMon(today)){
+        const ns = addDays(new Date(last.startDate), 7);
+        const nw = makeWeek(ns);
+        state.weeks.push(nw);
+        last = nw;
+      }
+      persist();
+      hydrateSelectors();
+      ui.weekId = findWeekIdForDate(today);
+    } else {
+      ui.weekId = weekId;
+    }
+    hydrateSelectors();
+    refreshAll();
+    toast('오늘이 포함된 주차로 이동');
+  }
+
+  async function exportCurrentViewPng(){
+    const area = el.exportAreas[ui.view];
+    if (!area) return;
+
+    toast('이미지 생성 중...');
+
+    // Temporarily add padding for nicer export
+    const prev = area.style.padding;
+    area.style.padding = '14px';
+
+    const canvas = await html2canvas(area, {
+      backgroundColor: '#0f172a',
+      scale: window.devicePixelRatio > 2 ? 2 : window.devicePixelRatio,
+      useCORS: true
+    });
+
+    area.style.padding = prev;
+
+    const a = document.createElement('a');
+    const name = `schedule_${ui.view}_${Date.now()}.png`;
+    a.download = name;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+
+    toast('PNG로 저장했습니다.');
+  }
+
+  function downloadBackup(){
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `schedule_backup_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('백업 파일을 다운로드했습니다.');
+  }
+
+  async function restoreBackup(file){
+    if (!file) return;
+    try{
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data || !Array.isArray(data.members) || !Array.isArray(data.places) || !Array.isArray(data.weeks)){
+        throw new Error('형식이 올바르지 않습니다.');
+      }
+      state = data;
+      persist();
+      hydrateSelectors();
+      refreshAll();
+      toast('복원 완료');
+    }catch(err){
+      toast('복원 실패: ' + err.message);
+    } finally {
+      el.restoreFile.value = '';
+    }
+  }
+
+  function resetAll(){
+    if (!confirm('정말 초기화할까요? 저장된 모든 데이터가 삭제됩니다.')) return;
+    state = createDefaultState();
+    persist();
+    hydrateSelectors();
+    refreshAll();
+    toast('초기화 완료');
+  }
+
+  function ensureWeekExists(weekId){
+    if (state.weeks.some(w => w.id === weekId)) return;
+    if (!state.weeks.length) state.weeks.push(makeWeek(DEFAULT_WEEK_START));
+    ui.weekId = state.weeks[0].id;
+  }
+
+  function getWeeksSorted(){
+    return [...state.weeks].sort((a,b) => new Date(a.startDate) - new Date(b.startDate));
+  }
+
+  function getMembersSorted(includeInactive=false){
+    const arr = [...state.members];
+    arr.sort((a,b) => {
+      if (a.active !== b.active) return a.active ? -1 : 1;
+      return a.name.localeCompare(b.name, 'ko');
+    });
+    return includeInactive ? arr : arr.filter(m => m.active);
+  }
+
+  function getPlacesSorted(){
+    const order = { bookstore: 1, mart: 2, other: 3 };
+    const arr = [...state.places];
+    arr.sort((a,b) => {
+      const ca = order[a.category] || 9;
+      const cb = order[b.category] || 9;
+      if (ca !== cb) return ca - cb;
+      return a.name.localeCompare(b.name, 'ko');
+    });
+    return arr;
+  }
+
+  function placeLabel(p){
+    const prefix = p.category === 'bookstore' ? '📚' : p.category === 'mart' ? '🛒' : '📍';
+    return `${prefix} ${p.name}`;
+  }
+
+  function categoryLabel(cat){
+    if (cat === 'bookstore') return '서점';
+    if (cat === 'mart') return '마트';
+    return '기타';
+  }
+
+  function createDefaultState(){
+    // Avoid referencing `state` while it is being initialized.
+    const week = makeWeek(DEFAULT_WEEK_START, DEFAULT_PLACES);
+    return {
+      version: 1,
+      members: DEFAULT_MEMBERS,
+      places: DEFAULT_PLACES,
+      weeks: [week]
+    };
+  }
+
+  function makeWeek(startDate, placesOverride){
+    const sd = startOfWeekMon(startDate);
+    const week = {
+      id: cryptoId(),
+      startDate: toDateKey(sd),
+      assignments: {},
+      warnings: {}
+    };
+
+    // precreate empty assignment structure (optional)
+    const dates = getWeekDateKeys(week.startDate);
+    const places = Array.isArray(placesOverride)
+      ? placesOverride
+      : ((typeof state !== 'undefined' && state && Array.isArray(state.places)) ? state.places : DEFAULT_PLACES);
+
+    places.forEach(p => {
+      week.assignments[p.id] = {};
+      dates.forEach(dk => week.assignments[p.id][dk] = []);
+    });
+
+    return week;
+  }
+
+  function weekLabel(week){
+    const sd = parseDateKey(week.startDate);
+    const ed = addDays(sd, 6);
+    return `${sd.getFullYear()}-${String(sd.getMonth()+1).padStart(2,'0')}-${String(sd.getDate()).padStart(2,'0')} ~ ${String(ed.getMonth()+1).padStart(2,'0')}-${String(ed.getDate()).padStart(2,'0')}`;
+  }
+
+  function getWeekDateKeys(startDateKey){
+    const sd = parseDateKey(startDateKey);
+    const keys = [];
+    for (let i=0;i<7;i++) keys.push(toDateKey(addDays(sd,i)));
+    return keys;
+  }
+
+  function buildMonthLookup(year, monthIndex){
+    // returns {dateKey: {count, lines[]}}
+    const lookup = {};
+    for (const w of state.weeks){
+      const sd = parseDateKey(w.startDate);
+      const dates = getWeekDateKeys(w.startDate);
+      for (const dk of dates){
+        const d = parseDateKey(dk);
+        if (d.getFullYear() !== year || d.getMonth() !== monthIndex) continue;
+        const lines = [];
+        let count = 0;
+        for (const p of state.places){
+          const arr = w.assignments[p.id]?.[dk] || [];
+          if (arr.length){
+            count += arr.length;
+            const names = arr.map(mid => findMember(mid)?.name || mid).join(', ');
+            lines.push(`${p.name}: ${names}`);
+          }
+        }
+        if (count){
+          lookup[dk] = lookup[dk] || { count: 0, lines: [] };
+          lookup[dk].count += count;
+          lookup[dk].lines.push(...lines);
+        }
+      }
+    }
+    return lookup;
+  }
+
+  function findWeekIdForDate(date){
+    const dk = toDateKey(date);
+    for (const w of state.weeks){
+      const dates = getWeekDateKeys(w.startDate);
+      if (dates.includes(dk)) return w.id;
+    }
+    return null;
+  }
+
+  function startOfWeekMon(date){
+    const d = new Date(date);
+    d.setHours(0,0,0,0);
+    const day = d.getDay();
+    // Monday=1, Sunday=0
+    const diff = (day === 0 ? -6 : 1 - day);
+    d.setDate(d.getDate() + diff);
+    return d;
+  }
+
+  function addDays(date, days){
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+  }
+
+  function toDateKey(date){
+    const d = new Date(date);
+    d.setHours(0,0,0,0);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function parseDateKey(key){
+    const [y,m,d] = key.split('-').map(Number);
+    return new Date(y, m-1, d);
+  }
+
+  function formatDateKr(date){
+    const d = new Date(date);
+    return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`;
+  }
+
+  function findMember(id){
+    return state.members.find(m => m.id === id) || null;
+  }
+
+  function persist(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function loadState(){
+    // NOTE: must not touch `state` variable here.
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    }catch{ return null; }
+  }
+
+  function toast(msg){
+    el.toast.textContent = msg;
+    el.toast.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => el.toast.classList.remove('show'), 2200);
+  }
+
+  function openModal(id){
+    const m = document.getElementById(id);
+    if (!m) return;
+    m.classList.add('open');
+    if (id === 'modalAdmin'){
+      updateRoleUI();
+      el.adminPw.focus();
+    }
+  }
+
+  function closeModal(id){
+    const m = document.getElementById(id);
+    if (!m) return;
+    m.classList.remove('open');
+  }
+
+  // Close modal on backdrop click
+  document.querySelectorAll('.modalBackdrop').forEach(back => {
+    back.addEventListener('click', (e) => {
+      if (e.target === back) back.classList.remove('open');
+    });
+  });
+
+  function escapeHtml(str){
+    return String(str)
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'",'&#39;');
+  }
+
+  function cryptoId(){
+    // kept for backward compatibility
+    return randId();
+  }
+
+  function applyUrlParams(){
+    const sp = new URLSearchParams(location.search);
+    const view = sp.get('view');
+    const week = sp.get('week');
+    const person = sp.get('person');
+    const place = sp.get('place');
+
+    if (view && ['week','person','place','month'].includes(view)) ui.view = view;
+    if (week) ui.weekId = week;
+    if (person) ui.personId = person;
+    if (place) ui.placeId = place;
+
+    // initial view is applied during init
+  }
+
+  function syncUrlParams(){
+    const url = new URL(location.href);
+    url.searchParams.set('view', ui.view);
+    if (ui.weekId) url.searchParams.set('week', ui.weekId);
+    if (ui.personId) url.searchParams.set('person', ui.personId);
+    if (ui.placeId) url.searchParams.set('place', ui.placeId);
+    history.replaceState(null, '', url);
+  }
+
+  // Register SW for PWA
+  if ('serviceWorker' in navigator){
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
+
+})();
+</script>
+</body>
+</html>
