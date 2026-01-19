@@ -17,32 +17,34 @@
 
   <style>
     :root{
-      --bg: #0b1220;
-      --panel: #0f172a;
-      --card: rgba(255,255,255,.06);
-      --card2: rgba(255,255,255,.09);
-      --text: rgba(255,255,255,.92);
-      --muted: rgba(255,255,255,.70);
-      --muted2: rgba(255,255,255,.55);
-      --border: rgba(255,255,255,.14);
-      --border2: rgba(255,255,255,.10);
-      --accent: #7c3aed;
-      --danger: #ef4444;
-      --warn: #f59e0b;
-      --ok: #22c55e;
+      /* Light, high-contrast theme for readability (40~50대 가독성) */
+      --bg: #f6f7fb;
+      --panel: #ffffff;
+      --card: #ffffff;
+      --card2: #f3f4f6;
+      --text: rgba(17,24,39,.95); /* gray-900 */
+      --muted: rgba(55,65,81,.80); /* gray-700 */
+      --muted2: rgba(107,114,128,.90); /* gray-500 */
+      --border: rgba(17,24,39,.12);
+      --border2: rgba(17,24,39,.08);
+      --accent: #2563eb; /* blue-600 */
+      --danger: #dc2626; /* red-600 */
+      --warn: #d97706; /* amber-600 */
+      --ok: #16a34a; /* green-600 */
 
       --bookstore: #E3F2FD;
       --mart: #F1F8E9;
       --other: #F5F5F5;
       --off: #F5F5F5;
 
-      --sat: #ffedd5;
-      --sun: #ffe4e6;
+      --sat: #fff7ed;
+      --sun: #fff1f2;
+      --holiday: #dc2626;
 
-      --shadow: 0 18px 60px rgba(0,0,0,.45);
-      --radius: 18px;
+      --shadow: 0 10px 30px rgba(17,24,39,.10);
+      --radius: 16px;
 
-      --cell-min-h: 56px;
+      --cell-min-h: 58px;
       --font: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
     }
 
@@ -50,9 +52,10 @@
     html,body{ height:100%; }
     body{
       margin:0;
-      background: radial-gradient(1200px 700px at 15% -10%, rgba(124,58,237,.35), transparent 60%),
-                  radial-gradient(900px 600px at 90% 0%, rgba(34,197,94,.18), transparent 60%),
-                  linear-gradient(180deg, #060914 0%, #0b1220 60%, #0b1220 100%);
+      background:
+        radial-gradient(1000px 600px at 10% -10%, rgba(37,99,235,.12), transparent 60%),
+        radial-gradient(900px 540px at 90% 0%, rgba(22,163,74,.10), transparent 60%),
+        linear-gradient(180deg, var(--bg) 0%, #ffffff 60%, var(--bg) 100%);
       color: var(--text);
       font-family: var(--font);
       letter-spacing: -0.2px;
@@ -71,7 +74,7 @@
       top: 0;
       z-index: 30;
       backdrop-filter: blur(10px);
-      background: linear-gradient(180deg, rgba(11,18,32,.92), rgba(11,18,32,.55));
+      background: rgba(246,247,251,.85);
       border-bottom: 1px solid var(--border2);
     }
 
@@ -94,8 +97,8 @@
     .logo{
       width: 40px; height: 40px;
       border-radius: 12px;
-      background: linear-gradient(135deg, rgba(124,58,237,.95), rgba(14,165,233,.85));
-      box-shadow: 0 12px 30px rgba(124,58,237,.30);
+      background: linear-gradient(135deg, rgba(37,99,235,.95), rgba(14,165,233,.65));
+      box-shadow: 0 10px 24px rgba(37,99,235,.18);
       display:grid; place-items:center;
       font-weight: 900;
     }
@@ -116,11 +119,11 @@
       gap: 8px;
       padding: 10px 12px;
       border: 1px solid var(--border);
-      background: rgba(255,255,255,.06);
+      background: rgba(255,255,255,.9);
       border-radius: 999px;
       cursor:pointer;
       user-select:none;
-      font-weight: 600;
+      font-weight: 800;
       font-size: 14px;
     }
     .pill:active{ transform: translateY(1px); }
@@ -146,24 +149,25 @@
 
     .tab{
       border: 1px solid var(--border);
-      background: rgba(255,255,255,.05);
+      background: rgba(255,255,255,.85);
       color: var(--text);
       padding: 10px 12px;
       border-radius: 12px;
       cursor: pointer;
-      font-weight: 700;
+      font-weight: 900;
       font-size: 14px;
     }
     .tab[aria-selected="true"]{
-      background: linear-gradient(135deg, rgba(124,58,237,.35), rgba(255,255,255,.08));
-      border-color: rgba(124,58,237,.6);
+      background: linear-gradient(135deg, rgba(37,99,235,.18), rgba(255,255,255,.95));
+      border-color: rgba(37,99,235,.45);
+      box-shadow: 0 8px 18px rgba(37,99,235,.12);
     }
 
     .panel{
       margin-top: 14px;
       border-radius: var(--radius);
       border: 1px solid var(--border);
-      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.04));
+      background: var(--panel);
       box-shadow: var(--shadow);
       overflow: hidden;
     }
@@ -194,10 +198,10 @@
       flex-wrap: wrap;
     }
 
-    select, input[type="text"], input[type="password"], input[type="date"], input[type="color"], textarea{
+    select, input[type="text"], input[type="password"], input[type="date"], input[type="color"], input[type="month"], textarea{
       font: inherit;
       color: var(--text);
-      background: rgba(255,255,255,.06);
+      background: rgba(255,255,255,.95);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 10px 12px;
@@ -207,16 +211,16 @@
 
     .btn{
       font: inherit;
-      font-weight: 800;
+      font-weight: 900;
       border-radius: 12px;
       padding: 10px 12px;
       border: 1px solid var(--border);
-      background: rgba(255,255,255,.06);
+      background: rgba(255,255,255,.95);
       color: var(--text);
       cursor: pointer;
     }
-    .btn.primary{ background: rgba(124,58,237,.35); border-color: rgba(124,58,237,.65); }
-    .btn.danger{ background: rgba(239,68,68,.18); border-color: rgba(239,68,68,.5); }
+    .btn.primary{ background: rgba(37,99,235,.12); border-color: rgba(37,99,235,.45); }
+    .btn.danger{ background: rgba(220,38,38,.10); border-color: rgba(220,38,38,.35); }
     .btn.ghost{ background: transparent; }
     .btn:active{ transform: translateY(1px); }
 
@@ -246,7 +250,7 @@
       position: sticky;
       top: 0;
       z-index: 10;
-      background: rgba(15,23,42,.92);
+      background: rgba(255,255,255,.92);
       backdrop-filter: blur(8px);
       text-align: left;
       font-size: 13px;
@@ -256,7 +260,7 @@
       position: sticky;
       left: 0;
       z-index: 9;
-      background: rgba(15,23,42,.95);
+      background: rgba(255,255,255,.96);
       backdrop-filter: blur(8px);
     }
 
@@ -278,8 +282,8 @@
     .cell{
       min-height: var(--cell-min-h);
       border-radius: 12px;
-      border: 1px dashed rgba(255,255,255,.18);
-      background: rgba(255,255,255,.03);
+      border: 1px dashed rgba(17,24,39,.18);
+      background: rgba(255,255,255,.92);
       padding: 8px;
       cursor: pointer;
     }
@@ -320,17 +324,20 @@
       margin-top: 6px;
     }
 
-    .cell.warn2{ border-color: rgba(245,158,11,.8); background: rgba(245,158,11,.12); }
-    .cell.warn3{ border-color: rgba(249,115,22,.85); background: rgba(249,115,22,.14); }
+    .cell.warn2{ border-color: rgba(217,119,6,.65); background: rgba(217,119,6,.10); }
+    .cell.warn3{ border-color: rgba(234,88,12,.65); background: rgba(234,88,12,.12); }
 
     /* Category tint on place column */
-    .placeTint.bookstore{ background: linear-gradient(180deg, rgba(227,242,253,.22), rgba(15,23,42,.92)); }
-    .placeTint.mart{ background: linear-gradient(180deg, rgba(241,248,233,.22), rgba(15,23,42,.92)); }
-    .placeTint.other{ background: linear-gradient(180deg, rgba(245,245,245,.18), rgba(15,23,42,.92)); }
+    .placeTint.bookstore{ background: linear-gradient(180deg, rgba(227,242,253,.85), rgba(255,255,255,.96)); }
+    .placeTint.mart{ background: linear-gradient(180deg, rgba(241,248,233,.85), rgba(255,255,255,.96)); }
+    .placeTint.other{ background: linear-gradient(180deg, rgba(245,245,245,.85), rgba(255,255,255,.96)); }
 
     /* weekend tint in header */
-    .isSat{ background: rgba(255,237,213,.22) !important; }
-    .isSun{ background: rgba(255,228,230,.22) !important; }
+    .isSat{ background: rgba(255,237,213,.55) !important; }
+    .isSun{ background: rgba(255,228,230,.55) !important; }
+    .isHoliday{ background: rgba(254,226,226,.75) !important; }
+    .holidayText{ color: var(--holiday) !important; font-weight: 1000; }
+    .holidayBadge{ display:inline-block; margin-top:6px; font-size:12px; color: var(--holiday); font-weight: 900; }
 
     /* Views */
     .view{ display:none; }
@@ -410,9 +417,9 @@
     .fabMain{
       width: 56px; height: 56px;
       border-radius: 18px;
-      border: 1px solid rgba(255,255,255,.18);
-      background: linear-gradient(135deg, rgba(124,58,237,.88), rgba(14,165,233,.55));
-      box-shadow: 0 20px 50px rgba(0,0,0,.45);
+      border: 1px solid rgba(17,24,39,.14);
+      background: linear-gradient(135deg, rgba(37,99,235,.92), rgba(14,165,233,.60));
+      box-shadow: 0 16px 40px rgba(37,99,235,.18);
       color: #fff;
       cursor: pointer;
       font-weight: 1000;
@@ -428,8 +435,8 @@
       gap: 10px;
       border-radius: 16px;
       padding: 10px 12px;
-      border: 1px solid rgba(255,255,255,.16);
-      background: rgba(15,23,42,.92);
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.96);
       color: var(--text);
       cursor: pointer;
       min-width: 210px;
@@ -443,7 +450,7 @@
     .modalBackdrop{
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,.55);
+      background: rgba(17,24,39,.35);
       display:none;
       z-index: 60;
       padding: 18px;
@@ -454,8 +461,8 @@
     .modal{
       max-width: 720px;
       margin: 50px auto;
-      border: 1px solid rgba(255,255,255,.18);
-      background: rgba(15,23,42,.94);
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.98);
       border-radius: 18px;
       box-shadow: var(--shadow);
       overflow: hidden;
@@ -531,9 +538,9 @@
 
     /* Print / export tweak */
     .exportArea{
-      background: rgba(15,23,42,.94);
+      background: rgba(255,255,255,.98);
       border-radius: 18px;
-      border: 1px solid rgba(255,255,255,.18);
+      border: 1px solid var(--border);
     }
 
     /* Small screens */
@@ -898,6 +905,36 @@
 
   const DAY_NAMES = ['일','월','화','수','목','금','토'];
 
+  // 2026 대한민국 공휴일(관공서 공휴일) - 주간/달력에서 빨간색 표시
+  // NOTE: 대체공휴일은 해당 연도 규정에 따라 포함(2026년 기준 반영)
+  const HOLIDAYS_2026 = {
+    '2026-01-01': '신정',
+    '2026-02-16': '설날 연휴',
+    '2026-02-17': '설날',
+    '2026-02-18': '설날 연휴',
+    '2026-03-01': '삼일절',
+    '2026-03-02': '삼일절 대체공휴일',
+    '2026-05-05': '어린이날',
+    '2026-05-24': '부처님오신날',
+    '2026-05-25': '부처님오신날 대체공휴일',
+    '2026-06-06': '현충일',
+    '2026-08-15': '광복절',
+    '2026-09-24': '추석 연휴',
+    '2026-09-25': '추석',
+    '2026-09-26': '추석 연휴',
+    '2026-10-03': '개천절',
+    '2026-10-09': '한글날',
+    '2026-12-25': '크리스마스'
+  };
+
+  function holidayName(dateKey){
+    return HOLIDAYS_2026[dateKey] || '';
+  }
+
+  function isHoliday(dateKey){
+    return Boolean(HOLIDAYS_2026[dateKey]);
+  }
+
   const DEFAULT_MEMBERS = [
     { id: randId(), name: '진영희', color: '#60a5fa', active: true },
     { id: randId(), name: '임승주', color: '#a78bfa', active: true },
@@ -930,10 +967,10 @@
   ];
 
   // One "week" is defined by Monday start (Korean work style)
-  const DEFAULT_WEEK_START = new Date(2025, 7, 25); // 2025-08-25 (Mon). We'll show as "8월 5주차" style. User can navigate.
+  const DEFAULT_WEEK_START = new Date(2026, 0, 19); // 2026-01-19 (Mon) 시작
 
   // ---------- State ----------
-  let state = loadState() || createDefaultState();
+  let state = migrateState(loadState()) || createDefaultState();
   let ui = {
     view: 'week',
     weekId: state.weeks[0]?.id,
@@ -1361,7 +1398,11 @@
       const dow = d.getDay();
       if (dow === 6) th.classList.add('isSat');
       if (dow === 0) th.classList.add('isSun');
-      th.innerHTML = `<span class="date">${d.getMonth()+1}/${d.getDate()}</span><span class="dow">${DAY_NAMES[dow]}</span>`;
+      const hname = holidayName(dk);
+      if (hname) th.classList.add('isHoliday');
+      const dowLabel = (hname ? `<span class="dow holidayText">${DAY_NAMES[dow]} · ${escapeHtml(hname)}</span>` : `<span class="dow">${DAY_NAMES[dow]}</span>`);
+      const dateClass = hname ? 'date holidayText' : 'date';
+      th.innerHTML = `<span class="${dateClass}">${d.getMonth()+1}/${d.getDate()}</span>${dowLabel}`;
       trh.appendChild(th);
     });
 
@@ -1872,7 +1913,11 @@
       const dow = d.getDay();
       if (dow === 6) th.classList.add('isSat');
       if (dow === 0) th.classList.add('isSun');
-      th.innerHTML = `<span class="date">${d.getMonth()+1}/${d.getDate()}</span><span class="dow">${DAY_NAMES[dow]}</span>`;
+      const hname = holidayName(dk);
+      if (hname) th.classList.add('isHoliday');
+      const dowLabel = (hname ? `<span class="dow holidayText">${DAY_NAMES[dow]} · ${escapeHtml(hname)}</span>` : `<span class="dow">${DAY_NAMES[dow]}</span>`);
+      const dateClass = hname ? 'date holidayText' : 'date';
+      th.innerHTML = `<span class="${dateClass}">${d.getMonth()+1}/${d.getDate()}</span>${dowLabel}`;
       trh.appendChild(th);
     });
 
@@ -2193,11 +2238,35 @@
     return '기타';
   }
 
+  function migrateState(loaded){
+    if (!loaded) return null;
+
+    // If old data exists, keep it (do not surprise users). But ensure required fields.
+    loaded.version ||= 1;
+    loaded.members ||= [];
+    loaded.places ||= [];
+    loaded.weeks ||= [];
+
+    // Ensure every member/place has id
+    loaded.members.forEach(m => { m.id ||= cryptoId(); m.active = (m.active !== false); m.color ||= '#60a5fa'; });
+    loaded.places.forEach(p => { p.id ||= cryptoId(); p.category ||= 'bookstore'; });
+
+    // If weeks are empty, start from 2026-01-19
+    if (!loaded.weeks.length){
+      loaded.weeks.push(makeWeek(DEFAULT_WEEK_START, loaded.places.length ? loaded.places : DEFAULT_PLACES));
+    }
+
+    // Ensure warnings exists
+    loaded.weeks.forEach(w => { w.warnings ||= {}; w.assignments ||= {}; w.id ||= cryptoId(); });
+
+    return loaded;
+  }
+
   function createDefaultState(){
     // Avoid referencing `state` while it is being initialized.
     const week = makeWeek(DEFAULT_WEEK_START, DEFAULT_PLACES);
     return {
-      version: 1,
+      version: 2,
       members: DEFAULT_MEMBERS,
       places: DEFAULT_PLACES,
       weeks: [week]
