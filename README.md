@@ -3,10 +3,31 @@
 팀장(엄마) 1명이 **웹에서 스케줄을 수정**하고, 팀원들은 **URL로 확인(보기 전용)** 또는 **PNG 이미지로 공유(카카오톡)** 할 수 있는 **단일 HTML 파일 기반** 스케줄러입니다. GitHub Pages에 올리면 바로 실행됩니다.
 
 > 비밀번호(관리자): **1234**
+> 
+> 기본 시작 주차: **2026-01-19(월)**
+> 
+> 2026년 공휴일(대한민국) 표시: **빨간색**
 
 ---
 
 ## ✅ 현재 완료된 기능
+
+### Google Sheets 스키마 싱크(중요)
+- `weeks` 시트의 2번째 컬럼 헤더가 **startDate** 이어야 정상 동작합니다.
+- 현재 운영 중인 시트가 `week1` 같은 이름을 쓰는 경우도 있어, 프론트(index.html)에서 **startDate 또는 week1 둘 다 허용**하도록 보완했습니다(호환 모드).
+- 권장: 시트 헤더를 `id,startDate`로 통일(가장 안전).
+
+### Google Sheets 동기화(공용 데이터)
+- Google Apps Script Web App을 백엔드처럼 사용
+- 팀원(보기 전용)은 주기적으로 서버에서 데이터를 다시 불러와 **항상 최신 스케줄 확인**
+- 팀장(관리자, 비번 1234)만 저장(POST import) 가능
+
+> Apps Script Web App URL은 `index.html` 상단 상수 `SHEETS_API_BASE`에 설정되어 있습니다.
+
+### UI/가독성(라이트 테마)
+- 어두운 테마 → **밝고 깔끔한 라이트 테마**로 변경
+- 버튼/텍스트 대비 강화(40~50대 가독성)
+- PNG 내보내기 배경도 흰색으로 통일
 
 ### 역할/권한
 - 관리자/일반 사용자 구분
@@ -49,17 +70,36 @@
 - 장소 추가(분류: 서점/마트/기타)
 - 장소 삭제/이름 변경/분류 변경
 
+### 공휴일 표시(2026)
+- 2026년 대한민국 공휴일을 내장
+- 주간/개인별 주간표/월간 달력에서 **공휴일은 빨간색**으로 표시
+
 ### PWA(기본)
 - `manifest.webmanifest` + `sw.js` 포함
 - 모바일에서 “홈 화면에 추가”로 앱처럼 사용 가능
 
 ---
 
+## 📱 모바일 최적화
+- 기본 주간 화면은 모바일에서 **카드(주간) 뷰**가 기본입니다.
+- 데스크톱에서는 표(주간) 뷰도 사용 가능합니다.
+
+## 🔗 기능 진입 URI (정적 사이트)
+
+### Google Sheets API(백엔드)
+- `GET {SHEETS_API_BASE}?op=export`
+  - returns: `{members, places, weeks, assignments}`
+- `POST {SHEETS_API_BASE}?op=import`
+  - body: `{members, places, weeks, assignments}`
+  - notes: 관리자 모드에서만 호출(공용DB 저장)
+
+> `SHEETS_API_BASE`는 `index.html` 내 상수로 설정되어 있습니다.
+
 ## 🔗 기능 진입 URI (정적 사이트)
 
 - `/index.html`
   - Query params(공유용):
-    - `view=week|person|place|month`
+    - `view=week|weekCards|person|place|month`
     - `week=<weekId>`
     - `person=<memberId>`
     - `place=<placeId>`
@@ -128,6 +168,27 @@ LocalStorage 키: `schedule_app_v1`
 ```
 
 ---
+
+## 🧰 Google Sheets / Apps Script 설정(필수)
+
+1) Google Sheets에 탭 4개 생성:
+- `members` / `places` / `weeks` / `assignments`
+
+2) Apps Script → Web App 배포
+- 접근 권한: **모든 사용자(익명 포함)**
+- URL(예): `https://script.google.com/macros/s/.../exec`
+
+3) `index.html`에서 아래 상수를 본인 URL로 설정
+- `SHEETS_API_BASE`
+
+> 현재 프로젝트는 이미 아래 URL로 설정됨:
+> `https://script.google.com/macros/s/AKfycbzeRHvFNESvR5JBZ6hdCZyhTOsfYjtki-9jFuGufDZr0P-o6dTxSecGoV_yCw1sqBTk/exec`
+
+4) 팀장 운영
+- 관리자(1234) 로그인 → 편집 → 자동 저장(구글시트 반영)
+
+5) 팀원 운영
+- 링크 접속 → 보기 전용 → 자동으로 최신 데이터 갱신
 
 ## 🚀 배포(중요)
 
