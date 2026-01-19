@@ -578,6 +578,7 @@
       <button class="tab" data-view="person">개인별</button>
       <button class="tab" data-view="place">장소별</button>
       <button class="tab" data-view="month">달력</button>
+      <button class="tab" data-view="weekCards">📱카드(주간)</button>
     </nav>
   </header>
 
@@ -599,7 +600,25 @@
 
       <div class="content">
         <div class="hint" style="margin-bottom:10px;">
-          · 보기 전용: 팀원들은 URL만 공유받아 확인합니다. · 편집: 우측 상단 <b>관리자</b> 버튼(비밀번호: <b>1234</b>). · 드래그&드롭: 팀원 태그를 셀로 끌어다 놓으면 배치됩니다(관리자 전용).
+          · 보기 전용: 팀원들은 URL만 공유받아 확인합니다. · 편집: 우측 상단 <b>관리자</b> 버튼(비밀번호: <b>1234</b>). · 드래그&드롭: 팀원 태그를 셀로 끌어다 놓으면 배치됩니다(관리자 전용).<br/>
+          <span class="holidayBadge">● 공휴일은 빨간 글씨로 표시됩니다(2026년 기준).</span>
+        </div>
+
+        <div class="view" id="view-weekCards">
+          <div class="grid2" style="margin-bottom:12px;">
+            <div>
+              <label class="hint" for="weekSelectCards">주차 선택</label>
+              <select id="weekSelectCards" style="width:100%; margin-top:6px;"></select>
+            </div>
+            <div>
+              <label class="hint" for="cardFilterText">빠른 필터(장소/팀원)</label>
+              <input id="cardFilterText" type="text" placeholder="예: 인천 / 김두니" style="width:100%; margin-top:6px;" />
+            </div>
+          </div>
+
+          <div class="exportArea" id="exportArea-weekCards">
+            <div class="cards" id="weekCards"></div>
+          </div>
         </div>
 
         <div class="view active" id="view-week">
@@ -894,6 +913,12 @@
   const ADMIN_KEY = 'schedule_admin_v1';
   const ADMIN_PASSWORD = '1234';
 
+  // Google Apps Script Web App (Sheets backend)
+  const SHEETS_API_BASE = 'https://script.google.com/macros/s/AKfycbzeRHvFNESvR5JBZ6hdCZyhTOsfYjtki-9jFuGufDZr0P-o6dTxSecGoV_yCw1sqBTk/exec';
+  const API_EXPORT_URL = `${SHEETS_API_BASE}?op=export`;
+  const API_IMPORT_URL = `${SHEETS_API_BASE}?op=import`;
+  const POLL_MS = 15000; // 팀원용 자동 새로고침(15초)
+
   function randId(){
     // small uuid-ish generator safe to call before other functions
     const a = crypto.getRandomValues(new Uint8Array(16));
@@ -971,6 +996,9 @@
 
   // ---------- State ----------
   let state = migrateState(loadState()) || createDefaultState();
+  let lastServerHash = '';
+  let pollTimer = null;
+  let isSyncing = false;
   let ui = {
     view: 'week',
     weekId: state.weeks[0]?.id,
@@ -1071,10 +1099,16 @@
 
     exportAreas: {
       week: document.getElementById('exportArea-week'),
+      weekCards: document.getElementById('exportArea-weekCards'),
       person: document.getElementById('exportArea-person'),
       place: document.getElementById('exportArea-place'),
       month: document.getElementById('exportArea-month'),
-    }
+    },
+
+    viewWeekCards: document.getElementById('view-weekCards'),
+    weekSelectCards: document.getElementById('weekSelectCards'),
+    cardFilterText: document.getElementById('cardFilterText'),
+    weekCards: document.getElementById('weekCards')
   };
 
   // ---------- Init ----------
@@ -1084,6 +1118,11 @@
   setView(ui.view); // apply initial view
   refreshAll();
   updateRoleUI();
+
+  // Start sync with Google Sheets
+  startPolling();
+  // First pull immediately (do not block UI)
+  pullFromServer({ force: true }).catch(() => {});
 
   // ---------- Events ----------
   el.tabs.forEach(btn => {
@@ -1121,6 +1160,8 @@
       toast('관리자 모드 활성화');
       updateRoleUI();
       refreshAll();
+      // 로그인 직후 서버에서 한번 당겨와 최신 상태 확인
+      pullFromServer({ force: true }).catch(() => {});
       closeModal('modalAdmin');
     } else {
       toast('비밀번호가 틀렸습니다.');
@@ -1132,6 +1173,8 @@
     toast('로그아웃(보기 전용)');
     updateRoleUI();
     refreshAll();
+    // 보기 전용으로 전환 시 서버 상태 재동기화
+    pullFromServer({ force: true }).catch(() => {});
     closeModal('modalAdmin');
   });
 
@@ -1142,6 +1185,12 @@
 
   el.weekSelect.addEventListener('change', () => {
     ui.weekId = el.weekSelect.value;
+    refreshAll();
+    syncUrlParams();
+  });
+
+  el.weekSelectCards.addEventListener('change', () => {
+    ui.weekId = el.weekSelectCards.value;
     refreshAll();
     syncUrlParams();
   });
@@ -1175,6 +1224,11 @@
     refreshWeekGrid();
   });
 
+  el.cardFilterText.addEventListener('input', () => {
+    ui.filterText = el.cardFilterText.value;
+    refreshWeekCards();
+  });
+
   el.btnExport.addEventListener('click', () => exportCurrentViewPng());
 
   el.btnBackup.addEventListener('click', () => downloadBackup());
@@ -1203,7 +1257,7 @@
     state.members.push({ id: cryptoId(), name, color, active: true });
     persist();
     el.newMemberName.value = '';
-    toast('팀원을 추가했습니다.');
+    toast('팀원을 추가했습니다. (공용DB 저장됨)');
     hydrateSelectors();
     refreshAll();
     renderMembersList();
@@ -1217,7 +1271,7 @@
     state.places.push({ id: cryptoId(), name, category });
     persist();
     el.newPlaceName.value = '';
-    toast('장소를 추가했습니다.');
+    toast('장소를 추가했습니다. (공용DB 저장됨)');
     hydrateSelectors();
     refreshAll();
     renderPlacesList();
@@ -1268,9 +1322,19 @@
     ui.view = view;
     el.tabs.forEach(t => t.setAttribute('aria-selected', String(t.dataset.view === view)));
     el.viewWeek.classList.toggle('active', view === 'week');
+    el.viewWeekCards.classList.toggle('active', view === 'weekCards');
     el.viewPerson.classList.toggle('active', view === 'person');
     el.viewPlace.classList.toggle('active', view === 'place');
     el.viewMonth.classList.toggle('active', view === 'month');
+
+    // mobile default: 카드 뷰
+    if (window.matchMedia && window.matchMedia('(max-width: 720px)').matches && view === 'week'){
+      ui.view = 'weekCards';
+      el.tabs.forEach(t => t.setAttribute('aria-selected', String(t.dataset.view === ui.view)));
+      el.viewWeek.classList.remove('active');
+      el.viewWeekCards.classList.add('active');
+    }
+
     refreshAll();
     syncUrlParams();
   }
@@ -1278,11 +1342,13 @@
   function hydrateSelectors(){
     // weeks
     el.weekSelect.innerHTML = '';
+    el.weekSelectCards.innerHTML = '';
     el.personWeekSelect.innerHTML = '';
     el.placeWeekSelect.innerHTML = '';
     getWeeksSorted().forEach(w => {
       const opt = new Option(weekLabel(w), w.id);
       el.weekSelect.add(opt.cloneNode(true));
+      el.weekSelectCards.add(opt.cloneNode(true));
       el.personWeekSelect.add(opt.cloneNode(true));
       el.placeWeekSelect.add(opt.cloneNode(true));
     });
@@ -1306,6 +1372,7 @@
     if (!ui.placeId || !state.places.some(p => p.id === ui.placeId)) ui.placeId = state.places[0]?.id;
 
     el.weekSelect.value = ui.weekId;
+    el.weekSelectCards.value = ui.weekId;
     el.personWeekSelect.value = ui.weekId;
     el.placeWeekSelect.value = ui.weekId;
     el.personSelect.value = ui.personId;
@@ -1338,18 +1405,21 @@
 
     // views
     refreshWeekGrid();
+    refreshWeekCards();
     refreshPersonView();
     refreshPlaceView();
     refreshMonthView();
 
     // consecutive warnings
     computeConsecutiveWarningsForWeek(ui.weekId);
-    // Re-render week grid to show warnings
+    // Re-render week grid/cards to show warnings
     refreshWeekGrid();
+    refreshWeekCards();
   }
 
   function viewTitle(){
-    if (ui.view === 'week') return '주간 스케줄(전체)';
+    if (ui.view === 'week') return '주간 스케줄(표)';
+    if (ui.view === 'weekCards') return '주간 스케줄(카드)';
     if (ui.view === 'person') return '개인별 스케줄';
     if (ui.view === 'place') return '장소별 스케줄';
     if (ui.view === 'month') return '월간 달력';
@@ -1486,6 +1556,146 @@
     table.appendChild(tbody);
     el.weekGrid.innerHTML = '';
     el.weekGrid.appendChild(table);
+  }
+
+  function refreshWeekCards(){
+    // 카드형 주간 뷰(모바일 최적화)
+    if (ui.view !== 'weekCards') return;
+
+    const week = state.weeks.find(w => w.id === ui.weekId);
+    if (!week) return;
+
+    // keep selectors in sync
+    el.weekSelectCards.value = week.id;
+    el.cardFilterText.value = ui.filterText || '';
+
+    const dates = getWeekDateKeys(week.startDate);
+    const filter = (ui.filterText || '').trim().toLowerCase();
+
+    const activePlaces = getPlacesSorted().filter(p => p.active !== false);
+    const activeMembers = getMembersSorted(true);
+
+    // Build per day cards
+    el.weekCards.innerHTML = '';
+
+    dates.forEach(dk => {
+      const d = parseDateKey(dk);
+      const dow = DAY_NAMES[d.getDay()];
+      const hname = holidayName(dk);
+
+      // Build items (place -> members)
+      const rows = [];
+      activePlaces.forEach(p => {
+        const arr = week.assignments?.[p.id]?.[dk] || [];
+        if (!arr.length) return;
+
+        const memberTags = arr.map(mid => {
+          const m = findMember(mid);
+          const name = m?.name || mid;
+          const color = m?.color || '#94a3b8';
+          return { id: mid, name, color };
+        });
+
+        rows.push({ place: p, members: memberTags });
+      });
+
+      // Apply filter (by place or member)
+      const filteredRows = !filter ? rows : rows.filter(r => {
+        if (r.place.name.toLowerCase().includes(filter)) return true;
+        return r.members.some(m => m.name.toLowerCase().includes(filter));
+      });
+
+      // Card wrapper
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.padding = '14px';
+
+      const head = document.createElement('div');
+      head.style.display = 'flex';
+      head.style.justifyContent = 'space-between';
+      head.style.alignItems = 'baseline';
+      head.style.gap = '10px';
+
+      const left = document.createElement('div');
+      left.innerHTML = `
+        <div style="font-weight:1000; font-size:16px;" class="${hname ? 'holidayText' : ''}">📅 ${d.getMonth()+1}/${d.getDate()} (${dow})</div>
+        ${hname ? `<div class="holidayBadge">${escapeHtml(hname)}</div>` : ''}
+      `;
+
+      const right = document.createElement('div');
+      right.className = 'hint';
+      right.textContent = filteredRows.length ? `${filteredRows.length}곳 배정` : '배정 없음';
+
+      head.appendChild(left);
+      head.appendChild(right);
+      card.appendChild(head);
+
+      // Body
+      const body = document.createElement('div');
+      body.style.marginTop = '12px';
+      body.style.display = 'flex';
+      body.style.flexDirection = 'column';
+      body.style.gap = '10px';
+
+      if (!filteredRows.length){
+        const empty = document.createElement('div');
+        empty.className = 'hint';
+        empty.textContent = '이 날짜에는 배정이 없습니다.';
+        body.appendChild(empty);
+      } else {
+        filteredRows.forEach(r => {
+          const box = document.createElement('div');
+          box.style.border = '1px solid rgba(17,24,39,.10)';
+          box.style.borderRadius = '14px';
+          box.style.background = 'rgba(255,255,255,.92)';
+          box.style.padding = '12px';
+
+          const top = document.createElement('div');
+          top.style.display = 'flex';
+          top.style.justifyContent = 'space-between';
+          top.style.alignItems = 'center';
+          top.style.gap = '10px';
+
+          const placeName = document.createElement('div');
+          placeName.style.fontWeight = '1000';
+          placeName.textContent = r.place.name;
+
+          const cat = document.createElement('div');
+          cat.className = 'badge';
+          cat.textContent = categoryLabel(r.place.category);
+
+          top.appendChild(placeName);
+          top.appendChild(cat);
+          box.appendChild(top);
+
+          const tags = document.createElement('div');
+          tags.className = 'tags';
+          tags.style.marginTop = '10px';
+
+          r.members.forEach(m => {
+            tags.appendChild(renderTag(m.name, m.color, false));
+          });
+
+          box.appendChild(tags);
+
+          if (isAdmin()){
+            const btn = document.createElement('button');
+            btn.className = 'btn';
+            btn.style.marginTop = '10px';
+            btn.textContent = '✏️ 이 장소 편집';
+            btn.addEventListener('click', () => {
+              openCellEditor(week.id, r.place.id, dk);
+            });
+            box.appendChild(btn);
+          }
+
+          body.appendChild(box);
+        });
+      }
+
+      card.appendChild(body);
+      el.weekCards.appendChild(card);
+    });
   }
 
   function refreshPersonView(){
@@ -1630,14 +1840,14 @@
     DAY_NAMES.forEach((n, i) => {
       const h = document.createElement('div');
       h.style.padding = '8px 10px';
-      h.style.border = '1px solid rgba(255,255,255,.12)';
+      h.style.border = '1px solid rgba(17,24,39,.12)';
       h.style.borderRadius = '12px';
-      h.style.background = 'rgba(255,255,255,.04)';
-      h.style.fontWeight = '900';
+      h.style.background = 'rgba(255,255,255,.96)';
+      h.style.fontWeight = '1000';
       h.style.fontSize = '12px';
       h.style.textAlign = 'center';
-      if (i === 6) h.style.background = 'rgba(255,237,213,.12)';
-      if (i === 0) h.style.background = 'rgba(255,228,230,.12)';
+      if (i === 6) h.style.background = 'rgba(255,237,213,.55)';
+      if (i === 0) { h.style.background = 'rgba(255,228,230,.55)'; h.style.color = 'var(--holiday)'; }
       h.textContent = n;
       grid.appendChild(h);
     });
@@ -1651,15 +1861,16 @@
       const d = new Date(yy, mm-1, day);
       const dk = toDateKey(d);
       const cell = document.createElement('div');
-      cell.style.border = '1px solid rgba(255,255,255,.12)';
+      cell.style.border = '1px solid rgba(17,24,39,.12)';
       cell.style.borderRadius = '14px';
-      cell.style.background = 'rgba(255,255,255,.04)';
+      cell.style.background = 'rgba(255,255,255,.98)';
       cell.style.padding = '10px 10px';
       cell.style.minHeight = ui.monthCompact ? '78px' : '120px';
       cell.style.cursor = 'pointer';
 
-      if (d.getDay() === 6) cell.style.background = 'rgba(255,237,213,.10)';
-      if (d.getDay() === 0) cell.style.background = 'rgba(255,228,230,.10)';
+      if (d.getDay() === 6) cell.style.background = 'rgba(255,237,213,.45)';
+      if (d.getDay() === 0) cell.style.background = 'rgba(255,228,230,.45)';
+      if (isHoliday(dk)) cell.style.background = 'rgba(254,226,226,.55)';
 
       const info = lookup[dk];
       const count = info?.count || 0;
@@ -1667,7 +1878,8 @@
       top.style.display = 'flex';
       top.style.justifyContent = 'space-between';
       top.style.alignItems = 'baseline';
-      top.innerHTML = `<div style="font-weight:1000;">${day}</div><div class="hint">${count ? count+'건' : ''}</div>`;
+      const hname = holidayName(dk);
+      top.innerHTML = `<div style="font-weight:1000;" class="${hname ? 'holidayText' : ''}">${day}</div><div class="hint ${hname ? 'holidayText' : ''}">${hname ? hname : (count ? count+'건' : '')}</div>`;
       cell.appendChild(top);
 
       if (!ui.monthCompact && info){
@@ -1697,7 +1909,7 @@
         if (weekId){
           ui.weekId = weekId;
           hydrateSelectors();
-          setView('week');
+          setView('weekCards');
           el.weekSelect.value = weekId;
           refreshAll();
           toast('해당 주차로 이동했습니다.');
@@ -1720,9 +1932,9 @@
 
   function blankCalCell(){
     const cell = document.createElement('div');
-    cell.style.border = '1px dashed rgba(255,255,255,.12)';
+    cell.style.border = '1px dashed rgba(17,24,39,.12)';
     cell.style.borderRadius = '14px';
-    cell.style.background = 'rgba(255,255,255,.02)';
+    cell.style.background = 'rgba(255,255,255,.85)';
     cell.style.minHeight = ui.monthCompact ? '78px' : '120px';
     return cell;
   }
@@ -1804,7 +2016,7 @@
     refreshPersonView();
     refreshPlaceView();
     closeModal('modalCell');
-    toast('저장했습니다.');
+    toast('저장했습니다. (공용DB 저장됨)');
   }
 
   function clearCellAssignments(){
@@ -1823,7 +2035,7 @@
     refreshPersonView();
     refreshPlaceView();
     closeModal('modalCell');
-    toast('비웠습니다.');
+    toast('비웠습니다. (공용DB 저장됨)');
   }
 
   function addMemberToCell(weekId, placeId, dateKey, memberId){
@@ -1991,6 +2203,7 @@
         hydrateSelectors();
         refreshAll();
         renderMembersList();
+        pullFromServer({ force: true }).catch(() => {});
       });
 
       row.querySelector('[data-act="rename"]').addEventListener('click', () => {
@@ -2001,6 +2214,7 @@
         hydrateSelectors();
         refreshAll();
         renderMembersList();
+        pullFromServer({ force: true }).catch(() => {});
       });
 
       row.querySelector('[data-act="color"]').addEventListener('click', () => {
@@ -2012,6 +2226,7 @@
         hydrateSelectors();
         refreshAll();
         renderMembersList();
+        pullFromServer({ force: true }).catch(() => {});
       });
 
       row.querySelector('[data-act="delete"]').addEventListener('click', () => {
@@ -2021,6 +2236,7 @@
         hydrateSelectors();
         refreshAll();
         renderMembersList();
+        pullFromServer({ force: true }).catch(() => {});
       });
 
       el.membersList.appendChild(row);
@@ -2053,6 +2269,7 @@
         hydrateSelectors();
         refreshAll();
         renderPlacesList();
+        pullFromServer({ force: true }).catch(() => {});
       });
 
       row.querySelector('[data-act="rename"]').addEventListener('click', () => {
@@ -2063,6 +2280,7 @@
         hydrateSelectors();
         refreshAll();
         renderPlacesList();
+        pullFromServer({ force: true }).catch(() => {});
       });
 
       row.querySelector('[data-act="delete"]').addEventListener('click', () => {
@@ -2074,6 +2292,7 @@
         hydrateSelectors();
         refreshAll();
         renderPlacesList();
+        pullFromServer({ force: true }).catch(() => {});
       });
 
       el.placesList.appendChild(row);
@@ -2088,9 +2307,10 @@
     const newWeek = makeWeek(nextStart);
     state.weeks.push(newWeek);
     persist();
+    pullFromServer({ force: true }).catch(() => {});
     hydrateSelectors();
     ui.weekId = newWeek.id;
-    toast('다음 주차를 생성했습니다.');
+    toast('다음 주차를 생성했습니다. (공용DB 저장됨)');
     refreshAll();
     syncUrlParams();
   }
@@ -2136,16 +2356,19 @@
     toast('이미지 생성 중...');
 
     // Temporarily add padding for nicer export
-    const prev = area.style.padding;
+    const prevPadding = area.style.padding;
+    const prevBg = area.style.background;
     area.style.padding = '14px';
+    area.style.background = '#ffffff';
 
     const canvas = await html2canvas(area, {
-      backgroundColor: '#0f172a',
+      backgroundColor: '#ffffff',
       scale: window.devicePixelRatio > 2 ? 2 : window.devicePixelRatio,
       useCORS: true
     });
 
-    area.style.padding = prev;
+    area.style.padding = prevPadding;
+    area.style.background = prevBg;
 
     const a = document.createElement('a');
     const name = `schedule_${ui.view}_${Date.now()}.png`;
@@ -2187,13 +2410,29 @@
     }
   }
 
-  function resetAll(){
+  async function resetAll(){
     if (!confirm('정말 초기화할까요? 저장된 모든 데이터가 삭제됩니다.')) return;
     state = createDefaultState();
-    persist();
+    // 로컬 초기화 후, 관리자라면 공용DB에도 반영할지 확인
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     hydrateSelectors();
     refreshAll();
-    toast('초기화 완료');
+
+    if (isAdmin()){
+      const ok = confirm('관리자 모드입니다. 공용DB(구글시트)도 초기화할까요?\n(팀원 모두에게 즉시 반영됩니다)');
+      if (ok){
+        try{
+          await pushToServer();
+          toast('공용DB까지 초기화 완료');
+        }catch(e){
+          toast('공용DB 초기화 실패(네트워크 확인)');
+        }
+      } else {
+        toast('로컬만 초기화했습니다.');
+      }
+    } else {
+      toast('로컬만 초기화했습니다.');
+    }
   }
 
   function ensureWeekExists(weekId){
@@ -2383,8 +2622,14 @@
     return state.members.find(m => m.id === id) || null;
   }
 
-  function persist(){
+  async function persist(options = { push: true }){
+    // Always save locally
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+    // Push to server only if admin (team lead) and allowed
+    if (options.push && isAdmin()){
+      await pushToServer();
+    }
   }
 
   function loadState(){
@@ -2394,6 +2639,156 @@
       if (!raw) return null;
       return JSON.parse(raw);
     }catch{ return null; }
+  }
+
+  function stableHash(obj){
+    // simple stable hash (not crypto) for change detection
+    const s = JSON.stringify(obj);
+    let h = 0;
+    for (let i=0;i<s.length;i++) h = ((h<<5)-h) + s.charCodeAt(i) | 0;
+    return String(h);
+  }
+
+  function startPolling(){
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(() => {
+      // Viewers always poll. Admin also polls to pick up changes from other devices.
+      pullFromServer({ force: false }).catch(() => {});
+    }, POLL_MS);
+  }
+
+  async function pullFromServer({ force } = { force: false }){
+    if (isSyncing) return;
+    isSyncing = true;
+    try{
+      const res = await fetch(API_EXPORT_URL, { cache: 'no-store' });
+      if (!res.ok) throw new Error('export failed');
+      const data = await res.json();
+
+      // Convert exported format -> app state format
+      const serverState = convertExportToState(data);
+      const serverHash = stableHash(serverState);
+      if (!force && serverHash === lastServerHash) return;
+
+      // If admin has local unsynced edits, prefer local unless forced.
+      // In this simple version, admin push happens on every persist, so we just accept server.
+      state = migrateState(serverState) || serverState;
+      lastServerHash = serverHash;
+
+      // Save locally without pushing back (avoid loop)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+      // Keep selected IDs valid
+      hydrateSelectors();
+      refreshAll();
+
+    } finally {
+      isSyncing = false;
+    }
+  }
+
+  async function pushToServer(){
+    // Push current state to server
+    const payload = convertStateToImport(state);
+    const bodyHash = stableHash(payload);
+    // Avoid redundant push if same as last server hash (light optimization)
+    // NOTE: lastServerHash is for state; we still allow push.
+
+    const res = await fetch(API_IMPORT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('import failed');
+
+    // After push, pull once to ensure we are consistent
+    await pullFromServer({ force: true });
+  }
+
+  function convertExportToState(exported){
+    // exported: {members, places, weeks, assignments}
+    const members = (exported.members || []).map(m => ({
+      id: String(m.id || ''),
+      name: String(m.name || ''),
+      color: String(m.color || '#60a5fa'),
+      active: String(m.active).toLowerCase() !== 'false'
+    })).filter(m => m.id && m.name);
+
+    const places = (exported.places || []).map(p => ({
+      id: String(p.id || ''),
+      name: String(p.name || ''),
+      category: String(p.category || 'bookstore'),
+      active: String(p.active).toLowerCase() !== 'false'
+    })).filter(p => p.id && p.name);
+
+    const weeks = (exported.weeks || []).map(w => ({
+      id: String(w.id || ''),
+      startDate: String(w.startDate || ''),
+      assignments: {},
+      warnings: {}
+    })).filter(w => w.id && w.startDate);
+
+    // Build assignment map: week.assignments[placeId][dateKey] = [memberIds]
+    const weekMap = new Map(weeks.map(w => [w.id, w]));
+    (exported.assignments || []).forEach(a => {
+      const weekId = String(a.weekId || '');
+      const dateKey = String(a.dateKey || '');
+      const placeId = String(a.placeId || '');
+      const memberIds = String(a.memberIds || '').split(',').map(s => s.trim()).filter(Boolean);
+      const week = weekMap.get(weekId);
+      if (!week || !dateKey || !placeId) return;
+      week.assignments[placeId] ||= {};
+      week.assignments[placeId][dateKey] = memberIds;
+    });
+
+    return {
+      version: 3,
+      members,
+      places,
+      weeks
+    };
+  }
+
+  function convertStateToImport(st){
+    // import format expected by Apps Script: {members, places, weeks, assignments}
+    const members = (st.members || []).map(m => ({
+      id: m.id,
+      name: m.name,
+      color: m.color,
+      active: m.active
+    }));
+
+    const places = (st.places || []).map(p => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      active: (p.active !== false)
+    }));
+
+    const weeks = (st.weeks || []).map(w => ({
+      id: w.id,
+      startDate: w.startDate
+    }));
+
+    const assignments = [];
+    (st.weeks || []).forEach(w => {
+      const dates = getWeekDateKeys(w.startDate);
+      (st.places || []).forEach(p => {
+        dates.forEach(dk => {
+          const arr = w.assignments?.[p.id]?.[dk] || [];
+          if (arr.length){
+            assignments.push({
+              weekId: w.id,
+              dateKey: dk,
+              placeId: p.id,
+              memberIds: arr.join(',')
+            });
+          }
+        });
+      });
+    });
+
+    return { members, places, weeks, assignments };
   }
 
   function toast(msg){
@@ -2442,12 +2837,14 @@
 
   function applyUrlParams(){
     const sp = new URLSearchParams(location.search);
-    const view = sp.get('view');
+    let view = sp.get('view');
+    // 모바일은 기본 카드 뷰
+    if (!view && window.matchMedia && window.matchMedia('(max-width: 720px)').matches) view = 'weekCards';
     const week = sp.get('week');
     const person = sp.get('person');
     const place = sp.get('place');
 
-    if (view && ['week','person','place','month'].includes(view)) ui.view = view;
+    if (view && ['week','weekCards','person','place','month'].includes(view)) ui.view = view;
     if (week) ui.weekId = week;
     if (person) ui.personId = person;
     if (place) ui.placeId = place;
