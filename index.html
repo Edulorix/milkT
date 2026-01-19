@@ -562,7 +562,6 @@
         <div class="logo">🗓</div>
         <div>
           <h1>근무 스케줄 관리</h1>
-          <div class="sub">URL로 공유 · PNG로 저장 · 주차 자동 생성</div>
         </div>
       </div>
 
@@ -600,8 +599,6 @@
 
       <div class="content">
         <div class="hint" style="margin-bottom:10px;">
-          · 보기 전용: 팀원들은 URL만 공유받아 확인합니다. · 편집: 우측 상단 <b>관리자</b> 버튼(비밀번호: <b>1234</b>). · 드래그&드롭: 팀원 태그를 셀로 끌어다 놓으면 배치됩니다(관리자 전용).<br/>
-          <span class="holidayBadge">● 공휴일은 빨간 글씨로 표시됩니다(2026년 기준).</span>
         </div>
 
         <div class="view" id="view-weekCards">
@@ -634,8 +631,7 @@
           </div>
 
           <div class="card" style="margin-bottom:12px;">
-            <h3 style="margin-bottom:6px;">드래그해서 배치 (관리자 전용)</h3>
-            <div class="hint" style="margin-bottom:8px;">팀원 태그를 원하는 날짜/장소 칸으로 드래그하세요. (여러 명 배치 가능)</div>
+            <h3 style="margin-bottom:6px;">스케쥴 배정</h3>
             <div class="tags" id="memberTags"></div>
           </div>
 
@@ -700,7 +696,6 @@
         <div class="cards" style="margin-top:12px;">
           <div class="card half">
             <h3>데이터 백업/복원</h3>
-            <div class="hint" style="margin-bottom:10px;">브라우저(LocalStorage)에 자동 저장됩니다. 혹시 몰라 백업 파일(JSON)을 주기적으로 저장하세요.</div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button class="btn" id="btnBackup">💾 백업(JSON)</button>
               <label class="btn" for="restoreFile" style="cursor:pointer;">📥 복원(JSON)</label>
@@ -710,7 +705,6 @@
           </div>
           <div class="card half">
             <h3>설정(팀원/장소 관리)</h3>
-            <div class="hint" style="margin-bottom:10px;">관리자 모드에서만 변경 가능합니다. (인원 변동이 잦은 특성 반영)</div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
               <button class="btn" id="btnManageMembers">👥 팀원 관리</button>
               <button class="btn" id="btnManagePlaces">🏢 장소 관리</button>
@@ -2872,3 +2866,4 @@
 </script>
 </body>
 </html>
+
