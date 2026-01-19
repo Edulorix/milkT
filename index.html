@@ -2454,16 +2454,16 @@
     return includeInactive ? arr : arr.filter(m => m.active);
   }
 
-  function getPlacesSorted(){
+  function getPlacesSorted(includeInactive=false){
     const order = { bookstore: 1, mart: 2, other: 3 };
-    const arr = [...state.places];
+    const arr = [...(state.places || [])];
     arr.sort((a,b) => {
       const ca = order[a.category] || 9;
       const cb = order[b.category] || 9;
       if (ca !== cb) return ca - cb;
-      return a.name.localeCompare(b.name, 'ko');
+      return String(a.name||'').localeCompare(String(b.name||''), 'ko');
     });
-    return arr;
+    return includeInactive ? arr : arr.filter(p => p.active !== false);
   }
 
   function placeLabel(p){
@@ -2536,7 +2536,12 @@
   }
 
   function weekLabel(week){
+    // Defensive: avoid NaN labels when data is malformed
+    if (!week?.startDate || !/^\d{4}-\d{2}-\d{2}$/.test(String(week.startDate))) {
+      return `주차(${escapeHtml(String(week?.id || 'unknown'))})`;
+    }
     const sd = parseDateKey(week.startDate);
+    if (isNaN(sd.getTime())) return `주차(${escapeHtml(String(week?.id || 'unknown'))})`;
     const ed = addDays(sd, 6);
     return `${sd.getFullYear()}-${String(sd.getMonth()+1).padStart(2,'0')}-${String(sd.getDate()).padStart(2,'0')} ~ ${String(ed.getMonth()+1).padStart(2,'0')}-${String(ed.getDate()).padStart(2,'0')}`;
   }
@@ -2628,7 +2633,13 @@
 
     // Push to server only if admin (team lead) and allowed
     if (options.push && isAdmin()){
-      await pushToServer();
+      toast('공용DB 저장 중...');
+      try{
+        await pushToServer();
+        toast('공용DB 저장 완료');
+      }catch{
+        // pushToServer already toasted error
+      }
     }
   }
 
@@ -2662,11 +2673,19 @@
     isSyncing = true;
     try{
       const res = await fetch(API_EXPORT_URL, { cache: 'no-store' });
-      if (!res.ok) throw new Error('export failed');
+      if (!res.ok) {
+        const t = await res.text().catch(() => '');
+        console.error('export failed', res.status, t);
+        throw new Error('export failed');
+      }
       const data = await res.json();
 
       // Convert exported format -> app state format
       const serverState = convertExportToState(data);
+      if (!serverState.weeks?.length){
+        console.warn('No valid weeks from server. Check weeks sheet headers: id,startDate');
+        toast('주차 데이터가 비어있거나 형식이 잘못되었습니다(weeks 시트 확인)');
+      }
       const serverHash = stableHash(serverState);
       if (!force && serverHash === lastServerHash) return;
 
@@ -2690,23 +2709,32 @@
   async function pushToServer(){
     // Push current state to server
     const payload = convertStateToImport(state);
-    const bodyHash = stableHash(payload);
-    // Avoid redundant push if same as last server hash (light optimization)
-    // NOTE: lastServerHash is for state; we still allow push.
 
-    const res = await fetch(API_IMPORT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) throw new Error('import failed');
+    try{
+      const res = await fetch(API_IMPORT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-    // After push, pull once to ensure we are consistent
-    await pullFromServer({ force: true });
+      const text = await res.text();
+      if (!res.ok){
+        console.error('import failed', res.status, text);
+        throw new Error(`import failed: ${res.status}`);
+      }
+
+      // After push, pull once to ensure we are consistent
+      await pullFromServer({ force: true });
+    }catch(err){
+      console.error('pushToServer error', err);
+      toast('공용DB 저장 실패(네트워크/권한/스크립트 확인)');
+      throw err;
+    }
   }
 
   function convertExportToState(exported){
     // exported: {members, places, weeks, assignments}
+    // NOTE: sheets headers must match. weeks sheet uses `startDate`.
     const members = (exported.members || []).map(m => ({
       id: String(m.id || ''),
       name: String(m.name || ''),
@@ -2721,12 +2749,16 @@
       active: String(p.active).toLowerCase() !== 'false'
     })).filter(p => p.id && p.name);
 
-    const weeks = (exported.weeks || []).map(w => ({
-      id: String(w.id || ''),
-      startDate: String(w.startDate || ''),
-      assignments: {},
-      warnings: {}
-    })).filter(w => w.id && w.startDate);
+    const weeks = (exported.weeks || []).map(w => {
+      const id = String(w.id || w.weekId || '');
+      const startDate = String(w.startDate || w.week1 || w.start_date || w.start || '');
+      return {
+        id,
+        startDate,
+        assignments: {},
+        warnings: {}
+      };
+    }).filter(w => w.id && /^\d{4}-\d{2}-\d{2}$/.test(w.startDate));
 
     // Build assignment map: week.assignments[placeId][dateKey] = [memberIds]
     const weekMap = new Map(weeks.map(w => [w.id, w]));
