@@ -2010,13 +2010,21 @@
     week.assignments[c.placeId] ||= {};
     week.assignments[c.placeId][c.dateKey] = mids;
 
-    persist();
-    computeConsecutiveWarningsForWeek(week.id);
-    refreshWeekGrid();
-    refreshPersonView();
-    refreshPlaceView();
-    closeModal('modalCell');
-    toast('저장했습니다. (공용DB 저장됨)');
+    (async () => {
+      try{
+        await persist();
+        toast('저장했습니다. (공용DB 저장됨)');
+      }catch{
+        // persist() 내부에서 실패 토스트를 띄움
+        toast('저장했습니다. (로컬 저장만 됨)');
+      }finally{
+        computeConsecutiveWarningsForWeek(week.id);
+        refreshWeekGrid();
+        refreshPersonView();
+        refreshPlaceView();
+        closeModal('modalCell');
+      }
+    })();
   }
 
   function clearCellAssignments(){
@@ -2029,13 +2037,20 @@
     week.assignments[c.placeId] ||= {};
     week.assignments[c.placeId][c.dateKey] = [];
 
-    persist();
-    computeConsecutiveWarningsForWeek(week.id);
-    refreshWeekGrid();
-    refreshPersonView();
-    refreshPlaceView();
-    closeModal('modalCell');
-    toast('비웠습니다. (공용DB 저장됨)');
+    (async () => {
+      try{
+        await persist();
+        toast('비웠습니다. (공용DB 저장됨)');
+      }catch{
+        toast('비웠습니다. (로컬 저장만 됨)');
+      }finally{
+        computeConsecutiveWarningsForWeek(week.id);
+        refreshWeekGrid();
+        refreshPersonView();
+        refreshPlaceView();
+        closeModal('modalCell');
+      }
+    })();
   }
 
   function addMemberToCell(weekId, placeId, dateKey, memberId){
@@ -2710,15 +2725,25 @@
     // Push current state to server
     const payload = convertStateToImport(state);
 
+    // IMPORTANT: Apps Script Web App은 CORS/리다이렉트 특성 때문에
+    // 브라우저 fetch에서 "opaque" 응답이 나오는 경우가 있습니다.
+    // 이때도 네트워크 레벨에서 성공했을 수 있으므로, push 후에는 반드시 export로 재검증합니다.
+
     try{
       const res = await fetch(API_IMPORT_URL, {
         method: 'POST',
+        mode: 'cors',
+        cache: 'no-store',
+        redirect: 'follow',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      const text = await res.text();
-      if (!res.ok){
+      let text = '';
+      try{ text = await res.text(); }catch{}
+
+      // type === 'opaque' 인 경우 status를 신뢰할 수 없어서 실패로 단정하지 않음
+      if (res.type !== 'opaque' && !res.ok){
         console.error('import failed', res.status, text);
         throw new Error(`import failed: ${res.status}`);
       }
